@@ -12,10 +12,7 @@ export function GetErrorCode(err: unknown): { statusCode: number; message: strin
 		return { statusCode: err.statusCode, message: err.message };
 	}
 
-	return {
-		statusCode: 500,
-		message: err instanceof Error ? err.message : "Internal Server Error"
-	};
+	return { statusCode: 500, message: "Internal Server Error" };
 }
 
 export function ErrorResponseHandler(res: Response<ErrorResponse>, err: unknown): void {
