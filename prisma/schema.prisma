@@ -11,3 +11,377 @@ model Example {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
 }
+
+enum UserRole {
+  BASIC
+  EDITOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum AdminAuditAction {
+  ROLE_CHANGED
+  EDITOR_ASSIGNED
+  EDITOR_REVOKED
+}
+
+enum PublicationStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum WorkReleaseStatus {
+  ONGOING
+  COMPLETED
+  HIATUS
+  CANCELLED
+}
+
+enum ChapterKind {
+  NORMAL
+  EXTRA
+  ANNOUNCEMENT
+}
+
+enum MediaAssetStatus {
+  AVAILABLE
+  DELETING
+}
+
+enum UploadBatchStatus {
+  PENDING
+  COMMITTED
+  ABANDONED
+}
+
+enum UploadObjectStatus {
+  PLANNED
+  UPLOADED
+  LINKED
+  CLEANED
+}
+
+enum MediaCleanupStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id                 String     @id @default(uuid()) @db.Uuid
+  email              String
+  emailNormalized    String     @unique
+  username           String
+  usernameNormalized String     @unique
+  passwordHash       String
+  role               UserRole   @default(BASIC)
+  status             UserStatus @default(ACTIVE)
+  timezone           String     @default("America/La_Paz")
+  createdAt          DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime   @updatedAt @db.Timestamptz(3)
+  deletedAt          DateTime?  @db.Timestamptz(3)
+
+  editorAssignments WorkEditorAssignment[] @relation("AssignedEditor")
+  assignmentsMade   WorkEditorAssignment[] @relation("AssignmentActor")
+  auditActions      AdminAuditEvent[]      @relation("AuditActor")
+  auditSubjectOf    AdminAuditEvent[]      @relation("AuditSubject")
+  createdWorks      Work[]                 @relation("WorkCreator")
+  updatedWorks      Work[]                 @relation("WorkUpdater")
+  createdChapters   Chapter[]              @relation("ChapterCreator")
+  updatedChapters   Chapter[]              @relation("ChapterUpdater")
+  mediaAssets       MediaAsset[]
+  favorites         Favorite[]
+  ratings           WorkRating[]
+  chapterReads      UserChapterRead[]
+  readEvents        ChapterReadEvent[]
+  uploadBatches     UploadBatch[]
+}
+
+model WorkEditorAssignment {
+  id           String    @id @default(uuid()) @db.Uuid
+  workId       String    @db.Uuid
+  editorId     String    @db.Uuid
+  assignedById String    @db.Uuid
+  assignedAt   DateTime  @default(now()) @db.Timestamptz(3)
+  revokedAt    DateTime? @db.Timestamptz(3)
+  work         Work      @relation(fields: [workId], references: [id], onDelete: Restrict)
+  editor       User      @relation("AssignedEditor", fields: [editorId], references: [id], onDelete: Restrict)
+  assignedBy   User      @relation("AssignmentActor", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  @@unique([workId, editorId])
+  @@index([editorId, revokedAt, workId])
+}
+
+model AdminAuditEvent {
+  id            String           @id @default(uuid()) @db.Uuid
+  actorId       String           @db.Uuid
+  subjectUserId String?          @db.Uuid
+  workId        String?          @db.Uuid
+  action        AdminAuditAction
+  previousRole  UserRole?
+  newRole       UserRole?
+  occurredAt    DateTime         @default(now()) @db.Timestamptz(3)
+  actor         User             @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  subjectUser   User?            @relation("AuditSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
+  work          Work?            @relation(fields: [workId], references: [id], onDelete: Restrict)
+
+  @@index([actorId, occurredAt])
+  @@index([subjectUserId, occurredAt])
+  @@index([workId, occurredAt])
+}
+
+model WorkType {
+  id    String @id @default(uuid()) @db.Uuid
+  name  String @unique
+  slug  String @unique
+  works Work[]
+}
+
+model Work {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  title              String
+  slug               String                 @unique
+  synopsis           String                 @db.Text
+  typeId             String                 @db.Uuid
+  publicationStatus  PublicationStatus      @default(DRAFT)
+  releaseStatus      WorkReleaseStatus      @default(ONGOING)
+  coverAssetId       String?                @db.Uuid
+  incapBannerAssetId String?                @db.Uuid
+  createdById        String                 @db.Uuid
+  updatedById        String                 @db.Uuid
+  createdAt          DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime               @updatedAt @db.Timestamptz(3)
+  publishedAt        DateTime?              @db.Timestamptz(3)
+  deletedAt          DateTime?              @db.Timestamptz(3)
+  type               WorkType               @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  coverAsset         MediaAsset?            @relation("WorkCover", fields: [coverAssetId], references: [id], onDelete: Restrict)
+  incapBannerAsset   MediaAsset?            @relation("WorkIncapBanner", fields: [incapBannerAssetId], references: [id], onDelete: Restrict)
+  createdBy          User                   @relation("WorkCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User                   @relation("WorkUpdater", fields: [updatedById], references: [id], onDelete: Restrict)
+  editorAssignments  WorkEditorAssignment[]
+  auditEvents        AdminAuditEvent[]
+  alternativeTitles  WorkAlternativeTitle[]
+  genres             WorkGenre[]
+  chapters           Chapter[]
+  favorites          Favorite[]
+  ratings            WorkRating[]
+  visits             WorkVisitEvent[]
+  uploadBatches      UploadBatch[]
+
+  @@index([typeId, publicationStatus, publishedAt, id])
+}
+
+model WorkAlternativeTitle {
+  id              String @id @default(uuid()) @db.Uuid
+  workId          String @db.Uuid
+  title           String
+  normalizedTitle String
+  work            Work   @relation(fields: [workId], references: [id], onDelete: Restrict)
+
+  @@unique([workId, normalizedTitle])
+}
+
+model Genre {
+  id    String      @id @default(uuid()) @db.Uuid
+  name  String      @unique
+  slug  String      @unique
+  works WorkGenre[]
+}
+
+model WorkGenre {
+  id      String @id @default(uuid()) @db.Uuid
+  workId  String @db.Uuid
+  genreId String @db.Uuid
+  work    Work   @relation(fields: [workId], references: [id], onDelete: Restrict)
+  genre   Genre  @relation(fields: [genreId], references: [id], onDelete: Restrict)
+
+  @@unique([workId, genreId])
+  @@index([genreId, workId])
+}
+
+model Chapter {
+  id            String             @id @default(uuid()) @db.Uuid
+  workId        String             @db.Uuid
+  number        Decimal            @db.Decimal(12, 3)
+  title         String?
+  kind          ChapterKind        @default(NORMAL)
+  status        PublicationStatus  @default(DRAFT)
+  version       Int                @default(1)
+  createdById   String             @db.Uuid
+  updatedById   String             @db.Uuid
+  createdAt     DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @db.Timestamptz(3)
+  publishedAt   DateTime?          @db.Timestamptz(3)
+  deletedAt     DateTime?          @db.Timestamptz(3)
+  work          Work               @relation(fields: [workId], references: [id], onDelete: Restrict)
+  createdBy     User               @relation("ChapterCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy     User               @relation("ChapterUpdater", fields: [updatedById], references: [id], onDelete: Restrict)
+  pages         ChapterPage[]
+  readStates    UserChapterRead[]
+  readEvents    ChapterReadEvent[]
+  uploadBatches UploadBatch[]
+
+  @@unique([workId, number])
+  @@index([workId, status, number])
+}
+
+model ChapterPage {
+  id        String     @id @default(uuid()) @db.Uuid
+  chapterId String     @db.Uuid
+  assetId   String     @db.Uuid
+  position  Int
+  chapter   Chapter    @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  asset     MediaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@unique([chapterId, position])
+  @@index([assetId])
+}
+
+model MediaAsset {
+  id            String            @id @default(uuid()) @db.Uuid
+  pathname      String            @unique
+  url           String
+  contentType   String
+  sizeBytes     BigInt
+  width         Int?
+  height        Int?
+  status        MediaAssetStatus  @default(AVAILABLE)
+  createdById   String            @db.Uuid
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  createdBy     User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  workCovers    Work[]            @relation("WorkCover")
+  incapBanners  Work[]            @relation("WorkIncapBanner")
+  pages         ChapterPage[]
+  siteSettings  SiteSettings[]
+  uploadObjects UploadObject[]
+  cleanupJobs   MediaCleanupJob[]
+}
+
+model SiteSettings {
+  id                   String      @id @default(uuid()) @db.Uuid
+  key                  String      @unique @default("default")
+  generalBannerAssetId String?     @db.Uuid
+  createdAt            DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime    @updatedAt @db.Timestamptz(3)
+  generalBannerAsset   MediaAsset? @relation(fields: [generalBannerAssetId], references: [id], onDelete: Restrict)
+}
+
+model Favorite {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  workId    String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  work      Work     @relation(fields: [workId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, workId])
+  @@index([userId, createdAt, id])
+  @@index([workId])
+}
+
+model WorkRating {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  workId         String   @db.Uuid
+  scoreHalfStars Int      @db.SmallInt
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  work           Work     @relation(fields: [workId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, workId])
+  @@index([workId])
+}
+
+model UserChapterRead {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  chapterId   String   @db.Uuid
+  isRead      Boolean  @default(true)
+  firstReadAt DateTime @default(now()) @db.Timestamptz(3)
+  lastReadAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, chapterId])
+  @@index([userId, lastReadAt, id])
+}
+
+model ChapterReadEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  chapterId       String    @db.Uuid
+  userId          String?   @db.Uuid
+  occurredAt      DateTime  @default(now()) @db.Timestamptz(3)
+  localDate       DateTime? @db.Date
+  timezoneAtEvent String?
+  idempotencyKey  String    @unique @db.Uuid
+  chapter         Chapter   @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  // SQL migration adds the partial daily uniqueness constraint for registered users.
+  @@index([chapterId, occurredAt])
+  @@index([userId, localDate])
+  @@index([occurredAt])
+}
+
+model WorkVisitEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  workId         String   @db.Uuid
+  occurredAt     DateTime @default(now()) @db.Timestamptz(3)
+  idempotencyKey String   @unique @db.Uuid
+  work           Work     @relation(fields: [workId], references: [id], onDelete: Restrict)
+
+  @@index([workId, occurredAt])
+}
+
+model UploadBatch {
+  id            String            @id @default(uuid()) @db.Uuid
+  requestedById String            @db.Uuid
+  chapterId     String?           @db.Uuid
+  workId        String?           @db.Uuid
+  status        UploadBatchStatus @default(PENDING)
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  expiresAt     DateTime          @db.Timestamptz(3)
+  requestedBy   User              @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  chapter       Chapter?          @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  work          Work?             @relation(fields: [workId], references: [id], onDelete: Restrict)
+  objects       UploadObject[]
+
+  @@index([status, expiresAt])
+}
+
+model UploadObject {
+  id       String             @id @default(uuid()) @db.Uuid
+  batchId  String             @db.Uuid
+  pathname String             @unique
+  assetId  String?            @db.Uuid
+  status   UploadObjectStatus @default(PLANNED)
+  batch    UploadBatch        @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  asset    MediaAsset?        @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([batchId])
+  @@index([assetId])
+}
+
+model MediaCleanupJob {
+  id            String             @id @default(uuid()) @db.Uuid
+  assetId       String?            @db.Uuid
+  pathname      String
+  status        MediaCleanupStatus @default(PENDING)
+  attempts      Int                @default(0)
+  nextAttemptAt DateTime           @default(now()) @db.Timestamptz(3)
+  lastErrorCode String?
+  createdAt     DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @db.Timestamptz(3)
+  asset         MediaAsset?        @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@index([assetId])
+}
