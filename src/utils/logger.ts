@@ -6,9 +6,6 @@ import { createLogger as createWinstonLogger, format, transports, type Logger } 
 import config from "../config/env";
 import AppError from "./AppError";
 
-export type { Logger } from "winston";
-
-const projectRoot = resolve(__dirname, "../..");
 const stringify = configure({ deterministic: false });
 const levelColors: Record<string, number> = {
 	error: 91,
@@ -74,14 +71,12 @@ export const catchAndLogError = (
 	error: unknown,
 	message: string
 ): never => {
-	if (error instanceof AppError) {
-		throw error;
-	}
+  if (!(error instanceof AppError)) {
+    logger.error(message, {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+  }
 
-	logger.error(message, {
-		error: error instanceof Error ? error.message : String(error),
-		stack: error instanceof Error ? error.stack : undefined
-	});
-
-	throw new AppError(message, 500);
+  throw error instanceof AppError ? error : new AppError(message, 500);
 };
