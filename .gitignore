@@ -44,3 +44,6 @@ Thumbs.db
 Desktop.ini
 
 .codex
+
+# Claude Code (config personal)
+.claude/settings.local.json
