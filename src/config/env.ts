@@ -10,7 +10,8 @@ const envSchema = Joi.object({
 	MONGODB_URI: Joi.string().uri({ scheme: ["mongodb", "mongodb+srv"] }).required(),
 	JWT_SECRET: Joi.string().min(32).required(),
 	BCRYPT_SALT_ROUNDS: Joi.number().integer().min(4).max(31).default(12),
-	BLOB_READ_WRITE_TOKEN: Joi.string().optional(),
+	BLOB_READ_WRITE_TOKEN: Joi.string().allow("").optional(),
+	FRONTEND_URL: Joi.string().uri({ scheme: ["http", "https"] }).allow("").optional(),
 	LOG_LEVEL: Joi.string().valid("error", "warn", "info", "http", "verbose", "debug", "silly").default("info")
 }).unknown(true);
 
@@ -35,6 +36,7 @@ interface EnvironmentVariables {
 	blob: {
 		readWriteToken?: string;
 	};
+	frontendUrl?: string;
 	logLevel: "error" | "warn" | "info" | "http" | "verbose" | "debug" | "silly";
 }
 
@@ -50,6 +52,7 @@ const config: EnvironmentVariables = {
 	blob: {
 		readWriteToken: value.BLOB_READ_WRITE_TOKEN
 	},
+	frontendUrl: value.FRONTEND_URL?.replace(/\/+$/, "") || undefined,
 	logLevel: value.LOG_LEVEL
 };
 

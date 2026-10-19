@@ -2,25 +2,32 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../../generated/prisma/client";
 import config from "../env";
 import { createLogger } from "../../utils/logger";
+import { safeErrorMessage, uriHost } from "./uri";
 
 const logger = createLogger("PostgreSQL");
+const host = uriHost(config.db.postgresUrl);
 
+// ssl: true = TLS with certificate verification (Render rejects plain connections).
+// An sslmode in DATABASE_URL overrides it (pg merges the parsed URL over this config),
+// e.g. "?sslmode=disable" for a local Postgres without TLS.
 const adapter = new PrismaPg({
-  connectionString: config.db.postgresUrl
+	connectionString: config.db.postgresUrl,
+	ssl: true
 });
 
+const prisma = new PrismaClient({ adapter });
 
 export async function connectDatabase() {
-    try {
-        logger.debug(`Connecting to PostgreSQL at ${config.db.postgresUrl}`);
-        await prisma.$connect();
-        logger.info("Connected to PostgreSQL");
-    } catch (error) {
-        logger.error(`Error connecting to PostgreSQL: ${error}`);
-        process.exit(1);
-    }
+	try {
+		logger.debug(`Connecting to PostgreSQL at ${host}`);
+		await prisma.$connect();
+		// PrismaPg is lazy: $connect() resolves even with a wrong password, so force a round trip.
+		await prisma.$queryRaw`SELECT 1`;
+		logger.info("Connected to PostgreSQL");
+	} catch (error) {
+		logger.error(`Error connecting to PostgreSQL: ${safeErrorMessage(error)}`);
+		process.exit(1);
+	}
 }
-
-const prisma = new PrismaClient({ adapter });
 
 export default prisma;
