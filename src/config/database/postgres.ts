@@ -21,8 +21,6 @@ export async function connectDatabase() {
 	try {
 		logger.debug(`Connecting to PostgreSQL at ${host}`);
 		await prisma.$connect();
-		// PrismaPg is lazy: $connect() resolves even with a wrong password, so force a round trip.
-		await prisma.$queryRaw`SELECT 1`;
 		logger.info("Connected to PostgreSQL");
 	} catch (error) {
 		logger.error(`Error connecting to PostgreSQL: ${safeErrorMessage(error)}`);
