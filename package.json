@@ -7,7 +7,7 @@
     "build": "tsc",
     "dev": "nodemon",
     "start": "node dist/index.js",
-    "prestart": "npm run build",
+    "prebuild": "npm run prisma:generate",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:migrate": "prisma migrate dev",
