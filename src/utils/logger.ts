@@ -70,11 +70,27 @@ export const catchAndLogError = (
 	options: { preserveOriginal?: boolean } = {}
 ): never => {
 	// Original driver messages/stacks may contain SQL values or credentials.
-	// Log only a static description supplied by the calling layer.
+	// Log a static description and allowlisted error types/codes, never driver payloads.
 	if (error instanceof AppError) {
 		logger.log(error.statusCode >= 500 ? "error" : "warn", message, { statusCode: error.statusCode });
 	} else {
-		logger.error(message);
+		const metadata: Record<string, string> = {};
+		if (error instanceof Error && [
+			"Error", "TypeError", "RangeError", "PrismaClientKnownRequestError",
+			"PrismaClientUnknownRequestError", "PrismaClientInitializationError",
+			"PrismaClientValidationError", "PrismaClientRustPanicError"
+		].includes(error.name)) metadata.errorType = error.name;
+		if (typeof error === "object" && error !== null) {
+			const driverError = error as { code?: unknown; errorCode?: unknown };
+			const code = driverError.code ?? driverError.errorCode;
+			if (typeof code === "string" && (/^P\d{4}$/.test(code) || /^[0-9][0-9A-Z]{4}$/.test(code) || [
+				"ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN",
+				"CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN",
+				"UNABLE_TO_VERIFY_LEAF_SIGNATURE", "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+				"ERR_TLS_CERT_ALTNAME_INVALID"
+			].includes(code))) metadata.errorCode = code;
+		}
+		logger.error(message, metadata);
 	}
 
 	// A transaction callback must preserve driver errors so withTransaction can retry.
