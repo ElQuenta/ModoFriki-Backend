@@ -15,7 +15,7 @@ const calendarDate = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).custom((value: 
 export const readingCalendarSchema = Joi.object({ from: calendarDate, to: calendarDate }).unknown(false).default({});
 
 export function validateReading<T>(schema: Joi.Schema, input: unknown): T {
-	const result = schema.validate(input, { abortEarly: false, convert: true });
+	const result = schema.validate(input ?? {}, { abortEarly: false, convert: true });
 	if (result.error) throw new AppError("Invalid reading input", 400);
 	return result.value as T;
 }

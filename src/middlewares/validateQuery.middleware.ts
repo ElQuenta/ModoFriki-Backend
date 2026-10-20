@@ -20,7 +20,7 @@ export function validateQuery(schema: Joi.ObjectSchema): RequestHandler {
       return;
     }
 
-    req.params = value;
+    Object.defineProperty(req, "query", { value, writable: true, configurable: true, enumerable: true });
     next();
   };
 }
