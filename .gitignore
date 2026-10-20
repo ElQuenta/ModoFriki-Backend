@@ -42,3 +42,8 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+.codex
+
+# Claude Code (config personal)
+.claude/settings.local.json

@@ -1,0 +1,2254 @@
+openapi: 3.0.3
+info:
+  title: ModoFriki API
+  version: 1.0.0
+  description: >-
+    Backend de la plataforma de cómics y manhwas ModoFriki. El contrato
+    acordado con el frontend está en docs/API.md. Las respuestas OK tienen la
+    forma { success, code, data } y los errores { success, code, error: { message } }.
+servers:
+  - url: /
+tags:
+  - name: Health
+paths:
+  /api/works/{workId}/visits:
+    post:
+      tags:
+        - Reading
+      summary: Registrar visita a una obra publicada
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingEventInput"
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingEvent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      description: UUID por operación, conservarlo al reintentar. Los GET no registran visitas.
+  /api/works/{workId}/stats:
+    get:
+      tags:
+        - Reading
+      summary: Visitas y lecturas totales/24h, favoritos y valoración
+      security: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingWorkStats"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/chapters/{chapterId}/read-events:
+    post:
+      tags:
+        - Reading
+      summary: Registrar lectura al entrar al capítulo y marcar leído
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingEventInput"
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingEvent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      description: "Auth opcional. Registrado: evento y estado atómicos, máximo una contribución por capítulo/día
+        local. Anónimo: solo evento. El frontend llama este POST al abrir el lector. La misma clave no se cuenta
+        otra vez, incluso al día siguiente."
+  /api/me/read-chapters/{chapterId}:
+    put:
+      tags:
+        - Reading
+      summary: Marcar capítulo leído previamente sin sumar actividad
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingReadState"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      description: Incluye leídos antes de crear cuenta. Las fechas representan el registro del estado; no se crea
+        evento ni se modifica la racha.
+    delete:
+      tags:
+        - Reading
+      summary: Desmarcar capítulo conservando actividad histórica
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Relación propia retirada; operación idempotente
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/me/favorites:
+    get:
+      tags:
+        - Reading
+      summary: Biblioteca personal de favoritos publicados
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingFavoritePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/me/favorites/{workId}:
+    put:
+      tags:
+        - Reading
+      summary: Añadir favorito idempotentemente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingFavoriteStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags:
+        - Reading
+      summary: Retirar favorito, incluso si la obra está oculta
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Relación propia retirada; operación idempotente
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/works/{workId}/rating:
+    put:
+      tags:
+        - Reading
+      summary: Establecer valoración propia entre 0 y 5
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingRatingInput"
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingRating"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags:
+        - Reading
+      summary: Retirar valoración propia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Relación propia retirada; operación idempotente
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/me/reading-history:
+    get:
+      tags:
+        - Reading
+      summary: Historial de capítulos actualmente marcados leídos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingHistoryPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/me/works/{workId}/progress:
+    get:
+      tags:
+        - Reading
+      summary: Favorito, valoración y progreso de capítulos publicados
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingProgress"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/me/reading-calendar:
+    get:
+      tags:
+        - Reading
+      summary: Calendario de actividad por día local, máximo 366 días
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingCalendar"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      description: Por defecto últimos 365 días. Conserva fechas locales históricas e incluye días sin actividad con cero.
+  /api/me/reading-stats:
+    get:
+      tags:
+        - Reading
+      summary: Cantidad de lecturas y rachas actual/máxima
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingStats"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar usuario BASIC ACTIVE
+      description: Password de 8 caracteres mínimo y 72 bytes UTF-8 máximo. Usuario 3 a 32 caracteres. Campos desconocidos rechazados.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [username, email, password]
+              properties:
+                username: { type: string, minLength: 3, maxLength: 32 }
+                email: { type: string, format: email, maxLength: 254 }
+                password: { type: string, minLength: 8 }
+                timezone: { type: string, example: America/La_Paz }
+      responses:
+        '201': { $ref: '#/components/responses/AuthResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Autenticar credenciales de usuario ACTIVE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                password: { type: string, minLength: 8 }
+      responses:
+        '200': { $ref: '#/components/responses/AuthResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Identidad y rol vigentes desde PostgreSQL
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Usuario vigente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/SuccessEnvelope' }
+                  - properties: { data: { $ref: '#/components/schemas/User' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/comments:
+    get:
+      tags: [Community]
+      summary: Página plana de raíces, hijos directos o rama completa
+      description: Un selector exacto targetType+targetId, parentCommentId o rootCommentId. Destino publicado. Bearer opcional, si se envía debe ser válido. Sin expansión recursiva.
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - { name: targetType, in: query, schema: { type: string, enum: [WORK, CHAPTER] } }
+        - { name: targetId, in: query, schema: { type: string, format: uuid } }
+        - { name: parentCommentId, in: query, schema: { type: string, format: uuid } }
+        - { name: rootCommentId, in: query, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/CursorCreatedAt' }
+        - { $ref: '#/components/parameters/CursorId' }
+        - { $ref: '#/components/parameters/CursorLimit' }
+      responses:
+        '200': { $ref: '#/components/responses/CommentPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Community]
+      summary: Crear raíz o respuesta de cualquier profundidad
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  required: [targetType, targetId, bodyMarkdown]
+                  properties:
+                    targetType: { type: string, enum: [WORK, CHAPTER] }
+                    targetId: { type: string, format: uuid }
+                    bodyMarkdown: { type: string, minLength: 1, maxLength: 10000 }
+                - type: object
+                  additionalProperties: false
+                  required: [parentCommentId, bodyMarkdown]
+                  properties:
+                    parentCommentId: { type: string, format: uuid }
+                    bodyMarkdown: { type: string, minLength: 1, maxLength: 10000 }
+      responses:
+        '201': { $ref: '#/components/responses/CommentResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/comments/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Community]
+      summary: Editar comentario propio ACTIVE con revisión optimista
+      description: La revisión también aumenta con respuestas, votos y reportes. Markdown debe renderizarse con sanitización.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [bodyMarkdown, expectedRevision]
+              properties:
+                bodyMarkdown: { type: string, minLength: 1, maxLength: 10000 }
+                expectedRevision: { type: integer, minimum: 0 }
+      responses:
+        '200': { $ref: '#/components/responses/CommentResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Community]
+      summary: Borrado lógico por autor o ADMIN, también en destinos ocultos
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Marcador conservado con bodyMarkdown null y descendientes intactos }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/comments/{id}/vote:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [Community]
+      summary: Establecer o sustituir voto propio
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { type: integer, enum: [-1, 1] } }
+      responses:
+        '200':
+          description: Conteo actual agregado desde votos independientes
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/SuccessEnvelope' }
+                  - properties:
+                      data:
+                        allOf:
+                          - { $ref: '#/components/schemas/Votes' }
+                          - properties: { commentId: { type: string, format: uuid } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Community]
+      summary: Retirar voto, idempotente, admite comentario eliminado en destino publicado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Voto ausente }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/comments/{id}/reports:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Community]
+      summary: Reportar comentario ACTIVE, un reporte por usuario y comentario
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: { type: string, enum: [SPAM, HARASSMENT, HATE, SPOILER, OTHER] }
+                details: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '201': { $ref: '#/components/responses/ReportResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/comment-reports:
+    get:
+      tags: [Community]
+      summary: ADMIN lista reportes privados incluso de destinos ocultos
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED] } }
+        - { $ref: '#/components/parameters/CursorCreatedAt' }
+        - { $ref: '#/components/parameters/CursorId' }
+        - { $ref: '#/components/parameters/CursorLimit' }
+      responses:
+        '200':
+          description: Página privada de moderación
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/SuccessEnvelope' }
+                  - properties:
+                      data:
+                        allOf:
+                          - { $ref: '#/components/schemas/CursorPage' }
+                          - properties: { items: { type: array, items: { $ref: '#/components/schemas/ModerationReport' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/comment-reports/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Community]
+      summary: ADMIN cierra reporte OPEN o IN_REVIEW, sin borrar automáticamente contenido
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status, resolution]
+              properties:
+                status: { type: string, enum: [RESOLVED, DISMISSED] }
+                resolution: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '200':
+          description: Reporte privado resuelto
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/SuccessEnvelope' }
+                  - properties: { data: { $ref: '#/components/schemas/ModerationReport' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /health:
+    get:
+      tags: [Health]
+      summary: Estado del servidor
+      responses:
+        "200":
+          description: Servidor activo
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  code:
+                    type: integer
+                    example: 200
+                  data:
+                    type: object
+                    required: [status]
+                    properties:
+                      status:
+                        type: string
+                        example: ok
+  /api/works:
+    get:
+      tags:
+        - Catalog
+      summary: Listar obras publicadas; includeDrafts requiere personal autorizado
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+      parameters: &a14
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          schema: &a2
+            type: string
+        - name: typeId
+          in: query
+          schema: &a1
+            type: string
+            format: uuid
+        - name: genreId
+          in: query
+          schema: *a1
+        - name: includeDrafts
+          in: query
+          schema:
+            type: boolean
+            default: false
+    post:
+      tags:
+        - Catalog
+      summary: Crear obra ADMIN; portada opcional para DRAFT
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: &a3
+                  type: string
+                  maxLength: 200
+                synopsis: &a4
+                  type: string
+                  maxLength: 30000
+                typeId: *a1
+                publicationStatus: &a5
+                  type: string
+                  enum:
+                    - DRAFT
+                    - PUBLISHED
+                releaseStatus: &a6
+                  type: string
+                  enum:
+                    - ONGOING
+                    - COMPLETED
+                    - HIATUS
+                    - CANCELLED
+                alternativeTitles: &a7
+                  type: array
+                  items: *a2
+                  maxItems: 50
+                genreIds: &a8
+                  type: array
+                  items: *a1
+                  maxItems: 50
+              required: &a10
+                - title
+                - synopsis
+                - typeId
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                cover: &a9
+                  type: string
+                  format: binary
+                inpagecover: *a9
+              required: *a10
+            encoding:
+              cover:
+                contentType: image/jpeg, image/png, image/webp
+              inpagecover:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "201":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/works/{workId}:
+    parameters:
+      - name: workId
+        in: path
+        required: true
+        schema: *a1
+    get:
+      tags:
+        - Catalog
+      summary: Obtener obra visible y sus medios
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    put:
+      tags:
+        - Catalog
+      summary: Editar metadatos; archivos opcionales; omitir conserva medios
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                expectedUpdatedAt: &a11
+                  type: string
+                  format: date-time
+              required: &a12
+                - expectedUpdatedAt
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                expectedUpdatedAt: *a11
+                cover: *a9
+                inpagecover: *a9
+              required: *a12
+            encoding:
+              cover:
+                contentType: image/jpeg, image/png, image/webp
+              inpagecover:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    patch:
+      tags:
+        - Catalog
+      summary: Editar obra parcialmente
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                expectedUpdatedAt: *a11
+              required: &a13
+                - expectedUpdatedAt
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                expectedUpdatedAt: *a11
+                cover: *a9
+                inpagecover: *a9
+              required: *a13
+            encoding:
+              cover:
+                contentType: image/jpeg, image/png, image/webp
+              inpagecover:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    delete:
+      tags:
+        - Catalog
+      summary: Retirar obra y capitulos conservando archivos en Blob
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedUpdatedAt: *a11
+              required:
+                - expectedUpdatedAt
+      responses:
+        "204":
+          description: Retirado
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/works/{workId}/chapters:
+    parameters:
+      - name: workId
+        in: path
+        required: true
+        schema: *a1
+    get:
+      tags:
+        - Catalog
+      summary: Listar cap?tulos por n?mero ascendente
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+      parameters: *a14
+    post:
+      tags:
+        - Catalog
+      summary: Crear cap?tulo; publicar exige p?ginas y obra publicada
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: &a15
+                  oneOf:
+                    - type: string
+                      pattern: ^\d{1,9}(?:\.\d{1,3})?$
+                    - type: number
+                      minimum: 0
+                      maximum: 999999999.999
+                title: &a16
+                  type: string
+                  nullable: true
+                  maxLength: 200
+                kind: &a17
+                  type: string
+                  enum:
+                    - NORMAL
+                    - EXTRA
+                    - ANNOUNCEMENT
+                status: *a5
+              required: &a18
+                - number
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                pages: &a20
+                  type: array
+                  items: *a9
+                  minItems: 1
+                  maxItems: 100
+              required: *a18
+            encoding:
+              pages:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "201":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/works/{workId}/chapters/{chapterId}:
+    parameters:
+      - name: workId
+        in: path
+        required: true
+        schema: *a1
+      - name: chapterId
+        in: path
+        required: true
+        schema: *a1
+    get:
+      tags:
+        - Catalog
+      summary: Obtener cap?tulo visible y p?ginas ordenadas
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    put:
+      tags:
+        - Catalog
+      summary: Editar cap?tulo; p?ginas opcionales reemplazan el conjunto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                expectedVersion: &a19
+                  type: integer
+                  minimum: 1
+              required: &a21
+                - expectedVersion
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                expectedVersion: *a19
+                pages: *a20
+              required: *a21
+            encoding:
+              pages:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    patch:
+      tags:
+        - Catalog
+      summary: Editar cap?tulo parcialmente; omitir p?ginas las conserva
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                expectedVersion: *a19
+              required: &a22
+                - expectedVersion
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                expectedVersion: *a19
+                pages: *a20
+              required: *a22
+            encoding:
+              pages:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    delete:
+      tags:
+        - Catalog
+      summary: Retirar capitulo conservando archivos en Blob
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedVersion: *a19
+              required:
+                - expectedVersion
+      responses:
+        "204":
+          description: Retirado
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/works/{workId}/chapters/{chapterId}/pages:
+    parameters:
+      - name: workId
+        in: path
+        required: true
+        schema: *a1
+      - name: chapterId
+        in: path
+        required: true
+        schema: *a1
+    put:
+      tags:
+        - Catalog
+      summary: Reemplazar p?ginas completas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedVersion: *a19
+                pages: *a20
+              required:
+                - expectedVersion
+                - pages
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    post:
+      tags:
+        - Catalog
+      summary: Insertar p?ginas en posici?n desde 1 y renumerar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedVersion: *a19
+                position:
+                  type: integer
+                  minimum: 1
+                pages: *a20
+              required:
+                - expectedVersion
+                - position
+                - pages
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    patch:
+      tags:
+        - Catalog
+      summary: Reordenar con permutaci?n exacta de pageIds, JSON sin archivos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedVersion: *a19
+                pageIds:
+                  type: array
+                  items: *a1
+                  uniqueItems: true
+                  minItems: 1
+                  maxItems: 1000
+              required:
+                - expectedVersion
+                - pageIds
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/work-types:
+    get:
+      tags:
+        - Catalog
+      summary: Listar tipos de obra
+      security: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    post:
+      tags:
+        - Catalog
+      summary: Crear tipo de obra ADMIN
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: *a2
+                slug:
+                  type: string
+                  pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+              required:
+                - name
+                - slug
+      responses:
+        "201":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/genres:
+    get:
+      tags:
+        - Catalog
+      summary: Listar g?neros
+      security: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    post:
+      tags:
+        - Catalog
+      summary: Crear g?nero ADMIN
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: *a2
+                slug:
+                  type: string
+                  pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+              required:
+                - name
+                - slug
+      responses:
+        "201":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CursorCreatedAt:
+      name: cursorCreatedAt
+      in: query
+      description: ISO UTC, junto con cursorId o ambos ausentes
+      schema: { type: string, format: date-time }
+    CursorId:
+      name: cursorId
+      in: query
+      schema: { type: string, format: uuid }
+    CursorLimit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+  schemas:
+    ReadingEventInput:
+      type: object
+      properties:
+        idempotencyKey:
+          type: string
+          format: uuid
+      required:
+        - idempotencyKey
+      additionalProperties: false
+    ReadingEvent:
+      type: object
+      properties:
+        counted:
+          type: boolean
+        occurredAt:
+          type: string
+          format: date-time
+        isRead:
+          type: boolean
+    ReadingReadState:
+      type: object
+      properties:
+        chapterId:
+          type: string
+          format: uuid
+        isRead:
+          type: boolean
+        firstReadAt:
+          type: string
+          format: date-time
+        lastReadAt:
+          type: string
+          format: date-time
+    ReadingWorkSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        coverUrl:
+          type: string
+          nullable: true
+    ReadingFavorite:
+      type: object
+      properties:
+        work:
+          $ref: "#/components/schemas/ReadingWorkSummary"
+        createdAt:
+          type: string
+          format: date-time
+    ReadingFavoriteStatus:
+      type: object
+      properties:
+        workId:
+          type: string
+          format: uuid
+        isFavorite:
+          type: boolean
+    ReadingFavoritePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadingFavorite"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+    ReadingRatingInput:
+      type: object
+      properties:
+        score:
+          type: number
+          minimum: 0
+          maximum: 5
+          multipleOf: 0.5
+      required:
+        - score
+      additionalProperties: false
+    ReadingRating:
+      type: object
+      properties:
+        workId:
+          type: string
+          format: uuid
+        score:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 5
+    ReadingHistoryItem:
+      type: object
+      properties:
+        chapterId:
+          type: string
+          format: uuid
+        isRead:
+          type: boolean
+        firstReadAt:
+          type: string
+          format: date-time
+        lastReadAt:
+          type: string
+          format: date-time
+        work:
+          $ref: "#/components/schemas/ReadingWorkSummary"
+        chapter:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            number:
+              type: string
+            title:
+              type: string
+              nullable: true
+    ReadingHistoryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadingHistoryItem"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+    ReadingProgressChapter:
+      type: object
+      properties:
+        chapterId:
+          type: string
+          format: uuid
+        isRead:
+          type: boolean
+        firstReadAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastReadAt:
+          type: string
+          format: date-time
+          nullable: true
+        number:
+          type: string
+        title:
+          type: string
+          nullable: true
+    ReadingProgress:
+      type: object
+      properties:
+        workId:
+          type: string
+          format: uuid
+        isFavorite:
+          type: boolean
+        score:
+          type: number
+          nullable: true
+        totalChapters:
+          type: integer
+          minimum: 0
+        readChapters:
+          type: integer
+          minimum: 0
+        completionPercentage:
+          type: number
+          minimum: 0
+          maximum: 100
+        chapters:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ReadingProgressChapter"
+            total:
+              type: integer
+              minimum: 0
+            page:
+              type: integer
+              minimum: 1
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 100
+    ReadingCalendar:
+      type: object
+      properties:
+        timezone:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        days:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              chaptersRead:
+                type: integer
+                minimum: 0
+    ReadingStats:
+      type: object
+      properties:
+        markedReadChapters:
+          type: integer
+          minimum: 0
+        favorites:
+          type: integer
+          minimum: 0
+        recordedReads:
+          type: integer
+          minimum: 0
+        activeDays:
+          type: integer
+          minimum: 0
+        readsToday:
+          type: integer
+          minimum: 0
+        readsLast7Days:
+          type: integer
+          minimum: 0
+        readsLast30Days:
+          type: integer
+          minimum: 0
+        currentStreak:
+          type: integer
+          minimum: 0
+        longestStreak:
+          type: integer
+          minimum: 0
+        lastReadingDate:
+          type: string
+          format: date
+          nullable: true
+        timezone:
+          type: string
+    ReadingWorkStats:
+      type: object
+      properties:
+        workId:
+          type: string
+          format: uuid
+        visits:
+          type: integer
+          minimum: 0
+        visitsLast24Hours:
+          type: integer
+          minimum: 0
+        reads:
+          type: integer
+          minimum: 0
+        readsLast24Hours:
+          type: integer
+          minimum: 0
+        favorites:
+          type: integer
+          minimum: 0
+        ratings:
+          type: integer
+          minimum: 0
+        averageRating:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 5
+    SuccessEnvelope:
+      type: object
+      required: [success, code, data]
+      properties:
+        success: { type: boolean, enum: [true] }
+        code: { type: integer }
+        data: {}
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, username, role, timezone, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        username: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        timezone: { type: string }
+        createdAt: { type: string, format: date-time }
+    Votes:
+      type: object
+      required: [upvotes, downvotes, score]
+      properties:
+        upvotes: { type: integer, minimum: 0 }
+        downvotes: { type: integer, minimum: 0 }
+        score: { type: integer }
+    Comment:
+      type: object
+      additionalProperties: false
+      required: [id, author, targetType, targetId, parentCommentId, rootCommentId, bodyMarkdown, status, revision, createdAt, editedAt, votes]
+      properties:
+        id: { type: string, format: uuid }
+        author:
+          type: object
+          nullable: true
+          required: [id, username]
+          properties:
+            id: { type: string, format: uuid }
+            username: { type: string }
+        targetType: { type: string, enum: [WORK, CHAPTER] }
+        targetId: { type: string, format: uuid }
+        parentCommentId: { type: string, format: uuid, nullable: true }
+        rootCommentId: { type: string, format: uuid }
+        bodyMarkdown: { type: string, nullable: true, maxLength: 10000 }
+        status: { type: string, enum: [ACTIVE, DELETED] }
+        revision: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        editedAt: { type: string, format: date-time, nullable: true }
+        votes: { $ref: '#/components/schemas/Votes' }
+    CursorPage:
+      type: object
+      required: [items, hasMore, nextCursor]
+      properties:
+        items: { type: array, items: {} }
+        hasMore: { type: boolean }
+        nextCursor:
+          type: object
+          nullable: true
+          required: [createdAt, id]
+          properties:
+            createdAt: { type: string, format: date-time }
+            id: { type: string, format: uuid }
+    Report:
+      type: object
+      required: [id, commentId, reason, details, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        commentId: { type: string, format: uuid }
+        reason: { type: string, enum: [SPAM, HARASSMENT, HATE, SPOILER, OTHER] }
+        details: { type: string, nullable: true }
+        status: { type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED] }
+        createdAt: { type: string, format: date-time }
+    ModerationReport:
+      allOf:
+        - { $ref: '#/components/schemas/Report' }
+        - type: object
+          required: [reporterId, reviewedById, reviewedAt, resolution, updatedAt]
+          properties:
+            reporterId: { type: string, format: uuid }
+            reviewedById: { type: string, format: uuid, nullable: true }
+            reviewedAt: { type: string, format: date-time, nullable: true }
+            resolution: { type: string, nullable: true }
+            updatedAt: { type: string, format: date-time }
+    ErrorResponse:
+      type: object
+      required: [success, code, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        code:
+          type: integer
+          example: 404
+        error:
+          type: object
+          required: [message]
+          properties:
+            message:
+              type: string
+              example: Route not found
+    PaginationMeta:
+      type: object
+      required: [total, page, limit]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+    Role:
+      type: string
+      enum: [BASIC, EDITOR, ADMIN]
+    WorkType:
+      type: string
+      enum: [MANHWA, MANHUA, MANGA, NOVELA]
+    WorkStatus:
+      type: string
+      enum: [ACTIVO, FINALIZADO, PAUSA]
+    FavoriteStatus:
+      type: string
+      enum: [LEYENDO, POR_LEER, COMPLETADO, PAUSA]
+  responses:
+    AuthResult:
+      description: Identidad pública y JWT HS256 válido siete días
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties:
+                  data:
+                    type: object
+                    required: [user, token]
+                    properties:
+                      user: { $ref: '#/components/schemas/User' }
+                      token: { type: string }
+    CommentResult:
+      description: Comentario público, sin metadatos privados
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/Comment' } }
+    CommentPage:
+      description: Página plana de comentarios, orden ascendente createdAt e id
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties:
+                  data:
+                    allOf:
+                      - { $ref: '#/components/schemas/CursorPage' }
+                      - properties: { items: { type: array, items: { $ref: '#/components/schemas/Comment' } } }
+    ReportResult:
+      description: Sólo el reporte recién creado por el actor
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/Report' } }
+    BadRequest:
+      description: Body, params o query inválidos, o JSON malformado
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            code: 400
+            error:
+              message: 'Validation error: "email" is required'
+    Unauthorized:
+      description: Falta el token o es inválido o expirado
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            code: 401
+            error:
+              message: Authentication required
+    Forbidden:
+      description: El usuario no tiene el rol requerido
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            code: 403
+            error:
+              message: Insufficient permissions
+    NotFound:
+      description: El recurso o la ruta no existe
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            code: 404
+            error:
+              message: Route not found
+    Conflict:
+      description: Recurso duplicado (email, username o slug)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            code: 409
+            error:
+              message: Email already in use

@@ -8,8 +8,8 @@ import { createLogger } from "./utils/logger";
 const logger = createLogger("Server");
 const port = config.port;
 
-app.listen(port, () => {
-  connectDatabase();
-  connectMongoDB();
-  logger.http(`Server running on http://localhost:${port}`);
+app.listen(port, async () => {
+	await connectDatabase();
+	await connectMongoDB();
+	logger.http(`Server running on http://localhost:${port}`);
 });
