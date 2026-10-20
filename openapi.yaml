@@ -11,6 +11,499 @@ servers:
 tags:
   - name: Health
 paths:
+  /api/works/{workId}/visits:
+    post:
+      tags:
+        - Reading
+      summary: Registrar visita a una obra publicada
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingEventInput"
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingEvent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      description: UUID por operación, conservarlo al reintentar. Los GET no registran visitas.
+  /api/works/{workId}/stats:
+    get:
+      tags:
+        - Reading
+      summary: Visitas y lecturas totales/24h, favoritos y valoración
+      security: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingWorkStats"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/chapters/{chapterId}/read-events:
+    post:
+      tags:
+        - Reading
+      summary: Registrar lectura al entrar al capítulo y marcar leído
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingEventInput"
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingEvent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      description: "Auth opcional. Registrado: evento y estado atómicos, máximo una contribución por capítulo/día
+        local. Anónimo: solo evento. El frontend llama este POST al abrir el lector. La misma clave no se cuenta
+        otra vez, incluso al día siguiente."
+  /api/me/read-chapters/{chapterId}:
+    put:
+      tags:
+        - Reading
+      summary: Marcar capítulo leído previamente sin sumar actividad
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingReadState"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      description: Incluye leídos antes de crear cuenta. Las fechas representan el registro del estado; no se crea
+        evento ni se modifica la racha.
+    delete:
+      tags:
+        - Reading
+      summary: Desmarcar capítulo conservando actividad histórica
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Relación propia retirada; operación idempotente
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/me/favorites:
+    get:
+      tags:
+        - Reading
+      summary: Biblioteca personal de favoritos publicados
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingFavoritePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/me/favorites/{workId}:
+    put:
+      tags:
+        - Reading
+      summary: Añadir favorito idempotentemente
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingFavoriteStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags:
+        - Reading
+      summary: Retirar favorito, incluso si la obra está oculta
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Relación propia retirada; operación idempotente
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/works/{workId}/rating:
+    put:
+      tags:
+        - Reading
+      summary: Establecer valoración propia entre 0 y 5
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingRatingInput"
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingRating"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags:
+        - Reading
+      summary: Retirar valoración propia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Relación propia retirada; operación idempotente
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/me/reading-history:
+    get:
+      tags:
+        - Reading
+      summary: Historial de capítulos actualmente marcados leídos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingHistoryPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/me/works/{workId}/progress:
+    get:
+      tags:
+        - Reading
+      summary: Favorito, valoración y progreso de capítulos publicados
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingProgress"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/me/reading-calendar:
+    get:
+      tags:
+        - Reading
+      summary: Calendario de actividad por día local, máximo 366 días
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingCalendar"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+      description: Por defecto últimos 365 días. Conserva fechas locales históricas e incluye días sin actividad con cero.
+  /api/me/reading-stats:
+    get:
+      tags:
+        - Reading
+      summary: Cantidad de lecturas y rachas actual/máxima
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReadingStats"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/auth/register:
     post:
       tags: [Auth]
@@ -1245,6 +1738,297 @@ components:
         maximum: 50
         default: 20
   schemas:
+    ReadingEventInput:
+      type: object
+      properties:
+        idempotencyKey:
+          type: string
+          format: uuid
+      required:
+        - idempotencyKey
+      additionalProperties: false
+    ReadingEvent:
+      type: object
+      properties:
+        counted:
+          type: boolean
+        occurredAt:
+          type: string
+          format: date-time
+        isRead:
+          type: boolean
+    ReadingReadState:
+      type: object
+      properties:
+        chapterId:
+          type: string
+          format: uuid
+        isRead:
+          type: boolean
+        firstReadAt:
+          type: string
+          format: date-time
+        lastReadAt:
+          type: string
+          format: date-time
+    ReadingWorkSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        coverUrl:
+          type: string
+          nullable: true
+    ReadingFavorite:
+      type: object
+      properties:
+        work:
+          $ref: "#/components/schemas/ReadingWorkSummary"
+        createdAt:
+          type: string
+          format: date-time
+    ReadingFavoriteStatus:
+      type: object
+      properties:
+        workId:
+          type: string
+          format: uuid
+        isFavorite:
+          type: boolean
+    ReadingFavoritePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadingFavorite"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+    ReadingRatingInput:
+      type: object
+      properties:
+        score:
+          type: number
+          minimum: 0
+          maximum: 5
+          multipleOf: 0.5
+      required:
+        - score
+      additionalProperties: false
+    ReadingRating:
+      type: object
+      properties:
+        workId:
+          type: string
+          format: uuid
+        score:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 5
+    ReadingHistoryItem:
+      type: object
+      properties:
+        chapterId:
+          type: string
+          format: uuid
+        isRead:
+          type: boolean
+        firstReadAt:
+          type: string
+          format: date-time
+        lastReadAt:
+          type: string
+          format: date-time
+        work:
+          $ref: "#/components/schemas/ReadingWorkSummary"
+        chapter:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            number:
+              type: string
+            title:
+              type: string
+              nullable: true
+    ReadingHistoryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadingHistoryItem"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+    ReadingProgressChapter:
+      type: object
+      properties:
+        chapterId:
+          type: string
+          format: uuid
+        isRead:
+          type: boolean
+        firstReadAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastReadAt:
+          type: string
+          format: date-time
+          nullable: true
+        number:
+          type: string
+        title:
+          type: string
+          nullable: true
+    ReadingProgress:
+      type: object
+      properties:
+        workId:
+          type: string
+          format: uuid
+        isFavorite:
+          type: boolean
+        score:
+          type: number
+          nullable: true
+        totalChapters:
+          type: integer
+          minimum: 0
+        readChapters:
+          type: integer
+          minimum: 0
+        completionPercentage:
+          type: number
+          minimum: 0
+          maximum: 100
+        chapters:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ReadingProgressChapter"
+            total:
+              type: integer
+              minimum: 0
+            page:
+              type: integer
+              minimum: 1
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 100
+    ReadingCalendar:
+      type: object
+      properties:
+        timezone:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        days:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              chaptersRead:
+                type: integer
+                minimum: 0
+    ReadingStats:
+      type: object
+      properties:
+        markedReadChapters:
+          type: integer
+          minimum: 0
+        favorites:
+          type: integer
+          minimum: 0
+        recordedReads:
+          type: integer
+          minimum: 0
+        activeDays:
+          type: integer
+          minimum: 0
+        readsToday:
+          type: integer
+          minimum: 0
+        readsLast7Days:
+          type: integer
+          minimum: 0
+        readsLast30Days:
+          type: integer
+          minimum: 0
+        currentStreak:
+          type: integer
+          minimum: 0
+        longestStreak:
+          type: integer
+          minimum: 0
+        lastReadingDate:
+          type: string
+          format: date
+          nullable: true
+        timezone:
+          type: string
+    ReadingWorkStats:
+      type: object
+      properties:
+        workId:
+          type: string
+          format: uuid
+        visits:
+          type: integer
+          minimum: 0
+        visitsLast24Hours:
+          type: integer
+          minimum: 0
+        reads:
+          type: integer
+          minimum: 0
+        readsLast24Hours:
+          type: integer
+          minimum: 0
+        favorites:
+          type: integer
+          minimum: 0
+        ratings:
+          type: integer
+          minimum: 0
+        averageRating:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 5
     SuccessEnvelope:
       type: object
       required: [success, code, data]

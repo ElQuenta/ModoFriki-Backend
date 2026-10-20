@@ -1,8 +1,9 @@
 import type { RequestHandler } from "express";
+import { ErrorResponseHandler } from "../../handlers/error.handler";
 import { CreatedResponseHandler, NoContentResponseHandler, SuccessResponseHandler } from "../../handlers/success.handler";
 import { catalogService, type CatalogService } from "../../services/catalog/catalog.service";
 import AppError from "../../utils/AppError";
-import { catchAndLogError, createLogger } from "../../utils/logger";
+import { createLogger } from "../../utils/logger";
 
 const logger = createLogger("CatalogController");
 // Prisma Decimal serializes itself to string; BigInt metadata must also be JSON safe.
@@ -10,7 +11,7 @@ export const catalogDto = (value: unknown): unknown => JSON.parse(JSON.stringify
 
 export class CatalogController {
 	constructor(private readonly service: CatalogService = catalogService) {}
-	private handle(action: RequestHandler): RequestHandler { return async (req, res, next) => { try { logger.debug("Handling catalog request"); await action(req, res, next); } catch (error) { return catchAndLogError(logger, error, "Unable to handle catalog request"); } }; }
+	private handle(action: RequestHandler): RequestHandler { return async (req, res, next) => { try { logger.debug("Handling catalog request"); await action(req, res, next); } catch (error) { logger.error("Unable to handle catalog request"); ErrorResponseHandler(res, error); } }; }
 	listWorks = this.handle(async (req, res) => { SuccessResponseHandler(res, catalogDto(await this.service.listWorks(req.query, res.locals.user))); });
 	getWork = this.handle(async (req, res) => { SuccessResponseHandler(res, catalogDto(await this.service.getWork(req.params.workId as string, res.locals.user))); });
 	listChapters = this.handle(async (req, res) => { SuccessResponseHandler(res, catalogDto(await this.service.listChapters(req.params.workId as string, req.query, res.locals.user))); });
