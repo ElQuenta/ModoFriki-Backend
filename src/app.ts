@@ -10,6 +10,7 @@ import { SuccessResponseHandler } from "./handlers/success.handler";
 import loggerMiddleware from "./middlewares/logger.middleware";
 import authRouter from "./routes/auth.routes";
 import communityRouter from "./routes/community.routes";
+import catalogRouter from "./routes/catalog.routes";
 import AppError from "./utils/AppError";
 import { createLogger } from "./utils/logger";
 
@@ -35,6 +36,7 @@ app.get("/health", (_request, response) => {
 app.use("/api/docs", serve, setup(openApiSpec));
 app.use("/api/auth", authRouter);
 app.use("/api", communityRouter);
+app.use("/api", catalogRouter);
 
 app.use((_request, response) => {
 	ErrorResponseHandler(response, new AppError("Route not found", 404));

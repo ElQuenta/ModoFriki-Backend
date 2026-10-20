@@ -8,16 +8,8 @@ import { createLogger } from "./utils/logger";
 const logger = createLogger("Server");
 const port = config.port;
 
-const start = async () => {
+app.listen(port, async () => {
 	await connectDatabase();
 	await connectMongoDB();
-	app.listen(port, (error) => {
-		if (error) {
-			logger.error(`Error starting server: ${error.message}`);
-			process.exit(1);
-		}
-		logger.http(`Server running on http://localhost:${port}`);
-	});
-};
-
-void start();
+	logger.http(`Server running on http://localhost:${port}`);
+});

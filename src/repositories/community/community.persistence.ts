@@ -17,7 +17,6 @@ export interface CommunityDependencies {
 
 export function communityDependencies(options: Partial<CommunityDependencies>): CommunityDependencies {
 	try {
-		logger.debug("Resolving community persistence dependencies");
 		return {
 			comments: options.comments ?? CommentModel,
 			votes: options.votes ?? CommentVoteModel,

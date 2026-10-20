@@ -8,6 +8,8 @@ Si algo tiene que cambiar, se avisa al otro y se actualiza este archivo antes de
 
 **Prioridad:** **P1** = MVP de hoy · **P2** = si da el tiempo.
 
+El contrato implementado de obras, capítulos y archivos se especifica en «Catálogo implementado» al final. Sustituye las propuestas anteriores de este documento para esas rutas, modelos y límites. Favoritos, lecturas, puntuaciones y visitas siguen fuera de este módulo.
+
 ## Convenciones
 - Base: `/api`. JSON en camelCase. Los ids son `string` UUID en PostgreSQL y Community MongoDB. Las fechas, `string` ISO 8601.
 - Respuesta OK: `{ "success": true, "code": 200, "data": <T> }`. Error: `{ "success": false, "code": 4xx, "error": { "message": "..." } }`.
@@ -123,3 +125,36 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 - **PostgreSQL (Prisma):** User, Work (n-n con Genre y Tag), Chapter (`@@unique([workId, number])`, `pages String[]`), Genre, Tag y Favorite (PK `userId + workId`).
 - **MongoDB:** Comment, CommentVote y CommentReport existentes, con UUID string y documentos independientes. La identidad de autores se consulta en PostgreSQL.
 - **Vercel Blob:** `works/` (portadas), `chapters/<workId>/<number>/` (páginas) y `avatars/`.
+
+## Catálogo implementado
+
+Prefijo `/api`. IDs UUID completos. ADMIN crea obras y taxonomías; ADMIN o EDITOR con asignación vigente edita la obra y sus capítulos. GET sin sesión devuelve solo publicaciones; bearer opcional permite a personal autorizado consultar detalles de borradores. Listas con `includeDrafts=true` requieren personal autorizado; EDITOR ve borradores de obras asignadas. No se registran visitas ni lecturas.
+
+Listas: `page=1`, `limit=20` (máximo 100), `search`, `typeId`, `genreId`, `includeDrafts=false`. Devuelven un array en `data`, sin total calculado. Obras ordenadas por creación descendente e ID; capítulos por número ascendente.
+
+| Método | Ruta | Cuerpo / comportamiento |
+| --- | --- | --- |
+| GET / POST | `/works` | POST `title`, `synopsis`, `typeId`, `publicationStatus?`, `releaseStatus?`, `alternativeTitles?`, `genreIds?`; archivos `cover?`, `inpagecover?` |
+| GET / PUT / PATCH / DELETE | `/works/:workId` | PUT/PATCH campos parciales anteriores y `expectedUpdatedAt` ISO obligatorio; DELETE solo `expectedUpdatedAt` |
+| GET / POST | `/works/:workId/chapters` | POST `number`, `title?`, `kind?`, `status?`; archivos repetidos `pages` |
+| GET / PUT / PATCH / DELETE | `/works/:workId/chapters/:chapterId` | PUT/PATCH campos parciales de capítulo y `expectedVersion` obligatorio; si se adjuntan `pages`, reemplazan todas; DELETE solo `expectedVersion` |
+| PUT | `/works/:workId/chapters/:chapterId/pages` | `expectedVersion` y uno o más archivos `pages`; reemplaza el conjunto completo |
+| POST | `/works/:workId/chapters/:chapterId/pages` | `expectedVersion`, `position` desde 1 y archivos `pages`; inserta y renumera |
+| PATCH | `/works/:workId/chapters/:chapterId/pages` | JSON `expectedVersion`, `pageIds` como permutación exacta de todos los IDs actuales; copia y renumera |
+| GET / POST | `/work-types`, `/genres` | POST exclusivo ADMIN: `{name, slug}` |
+
+PUT/PATCH de obra o capítulo admite JSON sin archivos: conserva todos los medios. Multipart admite adjuntos opcionales; cada archivo de portada enviado reemplaza solo ese campo. Arrays multipart (`alternativeTitles`, `genreIds`) son texto JSON, por ejemplo `genreIds='["uuid"]'`. Enviar páginas como campos repetidos `pages`, sin corchetes. Los endpoints específicos de reemplazo/inserción requieren archivos.
+
+Enums: `publicationStatus`/`status` = DRAFT o PUBLISHED; `releaseStatus` = ONGOING, COMPLETED, HIATUS o CANCELLED; `kind` = NORMAL, EXTRA o ANNOUNCEMENT. `number` decimal no negativo, hasta nueve enteros y tres decimales (preferir string). Publicar obra requiere portada. Publicar capítulo requiere páginas y obra publicada. Borradores pueden crearse sin imágenes.
+
+Límites: JPEG, PNG y WebP verificados por contenido, 10 MiB por archivo, 100 MiB total, 100 páginas por solicitud y 1000 por capítulo. Un archivo máximo por `cover` e `inpagecover`. La imagen inicial pertenece a la obra y se comparte entre sus capítulos; se devuelve como `incapBannerAsset`.
+
+Los DTO reflejan relaciones persistidas: obra con `type`, `coverAsset`, `incapBannerAsset`, `alternativeTitles`, `genres[].genre`; capítulo con `pages[].asset` y `position`. Fechas ISO, `MediaAsset.sizeBytes` y `Chapter.number` como strings. Tras crear/editar usar el nuevo `updatedAt` o `version` en la siguiente mutación. `pageIds` cambia al reconstruir páginas: recargar la respuesta tras cada edición. Errores 400 validación, 401 sesión, 403 permiso, 404 recurso oculto/inexistente, 409 versión/número/ruta en conflicto, 413 límites, 415 contenido, 503 almacenamiento no configurado.
+
+Para mostrar la imagen inicial de un capítulo, consultar `GET /api/works/:workId` y usar `incapBannerAsset`; el detalle del capítulo devuelve sus páginas. El middleware rechaza contenido de imagen inválido o MIME discordante con 400; 415 identifica formatos de páginas persistidas que no pueden reutilizarse. Un fallo inesperado del proveedor devuelve 500 sin su mensaje original.
+
+Carpeta estable de obra: `<slug-titulo>-<uuid4>/Covers/<uuid4>.<ext>` y `CoverPage/<uuid4>.<ext>`; capítulo: `<slug-obra>/Chapter-<chapterUuid4>/<uuid4>-<position>.<ext>`. Abreviaciones de cuatro caracteres generadas por servidor; editar título conserva carpeta. Una colisión devuelve 409 y requiere reintentar; nunca sobrescribe archivos. Insertar/reordenar copia páginas a nombres nuevos antes de confirmar la nueva secuencia. Solo al confirmar una nueva generación de páginas de un capítulo se borran sus archivos anteriores sin referencias. Esto incluye resubida completa, inserción y reordenamiento. Editar metadatos, cambiar portadas o retirar recursos no borra archivos en Blob. Fallos abandonan el lote y las reservas se mantienen ocultas para recuperación.
+
+La recepción con Multer, la validación y las operaciones `put`/`copy`/`del` de Blob se ejecutan en middlewares. El servicio construye el plan de negocio y los repositorios confirman las referencias. No existe limpieza periódica ni por vencimiento. Los archivos vencidos, abandonados o de subidas fallidas se conservan; al realizar una nueva mutación se liberan únicamente las reservas vencidas en PostgreSQL. El middleware de borrado se ejecuta después del commit de páginas, comprueba que los archivos pertenecen al capítulo y que no tienen referencias, y borra solo la generación sustituida. Si Blob rechaza ese borrado, se conserva la nueva versión confirmada y se registra un warning; no se programa un reintento automático. Los temporales locales de Multer se retiran al terminar la petición. Una creación de capítulo fallida puede reusar su reserva oculta al reintentar el mismo número; un capítulo confirmado y luego eliminado conserva ese número.
+
+El almacenamiento Blob configurado por este pipeline es público: ocultar un borrador en la API no vuelve privadas sus URLs. Las imágenes se validan por firma y estructura (PNG también verifica su raster); JPEG/WebP no se decodifican completamente. Para verificar el proveedor se necesita un almacén de pruebas con `BLOB_READ_WRITE_TOKEN`; las pruebas automatizadas simulan Blob y no usan credenciales reales.
