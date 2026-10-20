@@ -17,7 +17,7 @@ El contrato de biblioteca, visitas y actividad implementado se describe en «Bib
 - Respuesta OK: `{ "success": true, "code": 200, "data": <T> }`. Error: `{ "success": false, "code": 4xx, "error": { "message": "..." } }`.
 - Paginados futuros de catálogo: query `?page=1&limit=20` (`limit` máximo 50), `Paginated<T>`. Community usa `CursorPage<T>` y limit máximo 100, según contrato siguiente.
 - Auth: header `Authorization: Bearer <token>` (JWT de 7 días). Códigos: 401 sin token o token inválido, 403 sin rol, 404 no existe, 409 duplicado (email, username, slug).
-- CORS habilitado temporalmente para cualquier origen (`Access-Control-Allow-Origin: *`).
+- CORS restringido a `http://localhost:5173` y al origen de `FRONTEND_URL` (variable de entorno del backend en Render). Otros orígenes no reciben `Access-Control-Allow-Origin`.
 
 ## Formas de `data`
 ```ts

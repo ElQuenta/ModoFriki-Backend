@@ -8,28 +8,33 @@ De `AGENTS.md` aplica todo: arquitectura, persistencia, pipeline multimedia, Git
 - **Referencia de estilo:** ElQuenta/TankoBase, citada en `AGENTS.md`.
 
 ## Comandos
-- `npm run dev`: http://localhost:3000, con `GET /health`.
+- `npm run dev`: http://localhost:3000, con `GET /health` (y `GET /`).
 - `npx prisma generate`: obligatorio tras clonar (`src/generated/` está en .gitignore).
-- `npx prisma db push` y `npx prisma db seed`. No uses `migrate dev`, porque Render no tiene shadow DB; la DB es compartida.
+- Esquema por **migraciones SQL** en `prisma/migrations/` (ver `prisma/README.md`). Las nuevas se escriben aditivas y a mano o con `prisma migrate diff`; se aplican con `npx prisma migrate deploy`. Nunca `migrate dev`/`reset` ni `db push` (Render no tiene shadow DB y la DB es compartida). `npx prisma db seed` crea solo el ADMIN.
+- Para probar sin tocar la DB compartida: Postgres desechable en Docker y `DATABASE_URL=postgresql://…localhost…?sslmode=disable` en la variable de entorno del comando (dotenv no la pisa).
 - `npx tsc --noEmit` y `npm run build`.
-- No hay scripts de `test` ni de `lint`: no los inventes. Las pruebas son con `curl`, a cargo del subagente `test`.
+- `npm test`: Vitest (`vitest.config.ts`, variables de entorno ficticias). Tests en `src/<capa>/__tests__/<entidad>.<capa>.test.ts`, con repositorios y servicios externos mockeados; nunca la DB real. Los `__tests__` están excluidos de `tsconfig.json` (no van al build). No hay script de `lint`.
 
-## Arquitectura por capas (un archivo `<entidad>.<capa>.ts` por recurso)
+## Arquitectura por capas (por dominio: `auth`, `catalog`, `community`, `reading`, `discovery`)
 | Capa | Carpeta | Convención |
 | --- | --- | --- |
-| Routes | `src/routes/` | `Router()` + `router.route("/").get(…).post(…)`; se registran en `src/app.ts` con `app.use("/api/<recurso en plural del contrato>", …)` |
-| Controllers | `src/controllers/` | `export const getX = async (req: Request, res: Response) => { try { … SuccessResponseHandler(res, data); } catch (error) { ErrorResponseHandler(res, error); } };`, sin Prisma ni Mongoose |
-| Services | `src/services/` | `const logger = createLogger("XService")`; cada función hace `try { … } catch (error) { catchAndLogError(logger, error, "Error …"); }`. Los errores esperados son `new AppError("…", 4xx)`. Sin Request/Response ni Blob |
-| Repositories | `src/repositories/` | Única capa con `prisma` o Mongoose. Devuelve formas del contrato (`chaptersCount`, nunca `passwordHash`) y mapea P2002 → `AppError` 409 y P2025 → 404 |
-| Models | `src/models/` | Solo Mongoose (`comment.model.ts`) |
-| Validations | `src/validations/` | Joi: `create<X>Schema`, `update<X>Schema` (`.min(1)`), `<x>ParamSchema`, `<x>QuerySchema`; enums de Prisma |
+| Routes | `src/routes/<dominio>.routes.ts` | Factory con dependencias inyectables: `export function createXRouter(service = xService, auth = authService): Router` + `export default createXRouter()`. Se montan en `src/app.ts` con `app.use("/api", …)` (las rutas literales como `/works/popular` van en un router montado antes de `catalogRouter`, que tiene `/works/:workId`) |
+| Controllers | `src/controllers/<dominio>/<dominio>.controller.ts` | Clase que recibe el service; cada handler extrae `req.query/params/body` y `res.locals.user` y responde con `SuccessResponseHandler`/`ErrorResponseHandler`. Sin Prisma ni Mongoose |
+| Services | `src/services/<dominio>/<dominio>.service.ts` | Clase con repositorio inyectable por constructor + `export const xService`. Valida la entrada con el helper Joi del dominio y envuelve en `run()` con `catchAndLogError`. Errores esperados: `new AppError("…", 4xx)`. Sin Request/Response ni Blob |
+| Repositories | `src/repositories/<dominio>/*.ts` | Única capa con `prisma` o Mongoose (cliente inyectable). Devuelve formas del contrato (nunca `passwordHash`); `$queryRaw` solo con tagged template / `Prisma.sql`, nunca `Unsafe` |
+| Models | `src/models/community/` | Solo Mongoose (comentarios, votos, reportes) |
+| Validations | `src/middlewares/schemas/<dominio>.schema.ts` | Joi con `.unknown(false)` y helpers `validateX(schema, input)` que lanzan 400 |
+| Types | `src/types/<dominio>.types.ts` | Formas de `data` y contratos de repositorio |
 
-## Middlewares (`src/middlewares/`; responden con `ErrorResponseHandler` en su catch)
-- `authenticate`: Bearer JWT → `req.user = { id, role }`, tipado en `src/types/express.d.ts`.
-- `authorize(["ADMIN"])`: 401 sin usuario, 403 sin rol.
-- `validateBody`, `validateParams`, `validateQuery` (Joi con `abortEarly: false`, `convert: true`): 400 con `Validation error: …`.
-- Pipeline de upload: `authenticate → authorize → validateParams → uploadSingle/uploadMultiple → validateBody → uploadToBlob → controller`. Deja `res.locals.uploadedMedia: UploadedMedia | UploadedMedia[]` (`{ url, pathname, contentType, size }`, tipo en `src/types/media.ts`). Si la persistencia falla, el controller llama a `deleteUploadedMedia(res)`.
-- Respuestas: `{ success, code, data }`. Paginados: `{ items, total, page, limit }`, con `limit` ≤ 50. Documentación en `openapi.yaml` (raíz), servida en `/api/docs`.
+## Middlewares (`src/middlewares/`)
+- `createAuthenticate(auth)` / `createOptionalAuthenticate(auth)` (`auth.middleware.ts`): Bearer JWT → `res.locals.user`; sin header, la versión opcional sigue como anónimo; token inválido → 401.
+- `authorize(["ADMIN"])` (`role.middleware.ts`): 401 sin usuario, 403 sin rol.
+- `validatebody`, `validateParams`, `validateQuery`: Joi con `abortEarly: false`, `convert: true`; 400 con `Validation error: …`. La mayoría de dominios valida en el service con su helper.
+- `catalog.middleware.ts`: params, body, preflight y errores del pipeline de catálogo.
+- Pipeline multimedia en `src/middlewares/media/` (`receive` → `validate`/`image-validation` → `upload` a Blob → `delete-replaced` tras el commit); tipos en `media/types.ts`.
+- Los middlewares pueden lanzar `AppError`: el `errorHandler` de 4 argumentos de `src/app.ts` los convierte en JSON. No lo quites (sin él Express devuelve HTML con stack trace).
+- Respuestas: `{ success, code, data }`. Paginados: `{ items, total, page, limit }` (community usa cursor: `{ items, hasMore, nextCursor }`). Documentación en `openapi.yaml` (raíz), servida en `/api/docs`.
+- CORS restringido a `http://localhost:5173` y `FRONTEND_URL`.
 - Estilo: comillas dobles, punto y coma, tabs, exports con nombre, imports sin extensión (CommonJS).
 
 ## Roles (subagentes en `.claude/agents/`) y archivos propios
@@ -37,20 +42,21 @@ De `AGENTS.md` aplica todo: arquitectura, persistencia, pipeline multimedia, Git
 | --- | --- | --- |
 | `planner` | `docs/features/<feature>.md` | Al inicio de cada feature |
 | `architect` | Nada (consulta) | Solo si hay una decisión estructural sin resolver |
-| `db` | `prisma/schema.prisma`, `prisma/seed.ts`, `prisma.config.ts`, `src/config/database/**`, `src/models/**`, `src/repositories/**` | Si la feature toca datos |
-| `media` | `src/middlewares/upload.middleware.ts`, `src/middlewares/blob.middleware.ts`, `src/types/media.ts` | Si la feature sube archivos |
-| `dev` | `src/routes/**`, `src/controllers/**`, `src/services/**`, `src/validations/**`, `src/middlewares/{auth,role,validate}.middleware.ts`, `src/types/express.d.ts`, `src/app.ts`, `openapi.yaml`, `package.json` | Siempre, después de `db` y `media` |
+| `db` | `prisma/schema.prisma`, `prisma/migrations/**`, `src/scripts/seed.ts`, `prisma.config.ts`, `src/config/database/**`, `src/models/**`, `src/repositories/**`, `src/types/<dominio>.types.ts` | Si la feature toca datos |
+| `media` | `src/middlewares/media/**`, `src/utils/media-paths.ts` | Si la feature sube archivos |
+| `dev` | `src/routes/**`, `src/controllers/**`, `src/services/**`, `src/middlewares/schemas/**`, `src/middlewares/{auth,role,catalog,validatebody,validateParams,validateQuery}.middleware.ts`, `src/types/express.d.ts`, `src/app.ts`, `openapi.yaml`, `package.json` | Siempre, después de `db` y `media` |
 | `test` | Nada (prueba con curl) | Después de implementar |
+| (principal) | `**/__tests__/**`, `vitest.config.ts`, `docs/**`, `CLAUDE.md` | Unit tests y documentación |
 | `reviewer` | Nada (revisa) | Antes de cada commit |
 | `security` | Nada (audita) | En paralelo con `reviewer` si la feature toca auth, permisos, uploads o secretos |
 
 Los hallazgos vuelven al **dueño del archivo**, nunca a otro rol. Si un archivo no aparece en la tabla, lo edita el agente principal.
 
-Dependencias: cualquier rol puede instalar los `@types/*` que necesiten sus archivos (`npm i -D @types/multer`, por ejemplo). Las dependencias de runtime nuevas las agrega solo `dev`, justificándolo en su entrega; la única prevista es `cors`.
+Dependencias: cualquier rol puede instalar los `@types/*` que necesiten sus archivos (`npm i -D @types/multer`, por ejemplo). Las dependencias de runtime nuevas las agrega solo `dev`, justificándolo en su entrega; hoy no hay ninguna prevista.
 
 ## Skill
 `/modofriki-feature <feature>` es el flujo completo de `docs/agents/WORKFLOW.md` adaptado a Claude.
-Orden del MVP: `base` → `schema` → `auth` → `genres-tags` → `works` → `chapters` → `favorites` → `comments` → `users` → `uploads`.
+MVP terminado (dominios `auth`, `catalog`, `community`, `reading`, `discovery`). Cada feature nueva pasa por el skill con su propia rama.
 
 ## Hooks (`.claude/settings.json`)
 - **PreToolUse en Edit/Write:** bloquea `.env*` (excepto `.env.example`) y `src/generated/**`.
