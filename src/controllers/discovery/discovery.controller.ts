@@ -15,4 +15,5 @@ export class DiscoveryController {
 		};
 	}
 	listLatestChapters = this.handle(async (req, res) => { SuccessResponseHandler(res, await this.service.listLatestChapters(req.query)); });
+	listPopularWorks = this.handle(async (req, res) => { SuccessResponseHandler(res, await this.service.listPopularWorks(req.query)); });
 }

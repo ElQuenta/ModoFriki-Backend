@@ -155,4 +155,4 @@ Commits / build / tests / revisión / QA: pendientes.
 - `tsc --noEmit` y `build` pasan.
 
 ## Integración
-- Rama: feat/latest-chapters. tsc y build OK. 400 de query verificados con curl; casos 200 pendientes: Postgres de Render cierra la conexión ("Connection terminated unexpectedly").
+- Rama: feat/latest-chapters. tsc y build OK. 400 de query verificados con curl; casos 200 verificados después contra Postgres local en Docker (migrate deploy + fixtures), 32/32 junto con popular.

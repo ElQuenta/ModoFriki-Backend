@@ -551,6 +551,62 @@ paths:
                         $ref: "#/components/schemas/LatestChapterPage"
         "400":
           $ref: "#/components/responses/BadRequest"
+  /api/works/popular:
+    get:
+      tags:
+        - Discovery
+      summary: Obras más visitadas (Populares)
+      description: >-
+        Todas las obras PUBLISHED y no eliminadas, también con 0 visitas,
+        ordenadas por visits descendente, publishedAt descendente e id.
+        period=day cuenta las visitas de las últimas 24 horas. Un typeId
+        inexistente devuelve una página vacía. Se rechazan claves de query
+        desconocidas.
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, day]
+            default: all
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+        - name: typeId
+          in: query
+          required: false
+          description: UUID de /api/work-types
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PopularWorkPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
   /api/auth/register:
     post:
       tags: [Auth]
@@ -2119,6 +2175,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LatestChapter"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+    PopularWork:
+      type: object
+      required: [work, visits]
+      properties:
+        work:
+          $ref: "#/components/schemas/WorkRef"
+        visits:
+          type: integer
+          minimum: 0
+    PopularWorkPage:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PopularWork"
         total:
           type: integer
           minimum: 0

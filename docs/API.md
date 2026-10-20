@@ -219,3 +219,13 @@ interface LatestChapter {
 | P1 | GET | /api/chapters/latest | — | `page?` (default 1, máximo 100000), `limit?` (default 12, máximo 50), `typeId?` (UUID de `/api/work-types`) | `Paginated<LatestChapter>` |
 
 Solo capítulos PUBLISHED y no eliminados de obras PUBLISHED y no eliminadas, ordenados por `publishedAt` descendente e `id`. `typeId` inexistente devuelve una página vacía. Errores: 400 query inválida (UUID, page/limit fuera de rango, claves desconocidas).
+
+```ts
+interface PopularWork { work: WorkRef; visits: number }
+```
+
+| P | Método | Ruta | Auth | Query | `data` |
+|---|---|---|---|---|---|
+| P1 | GET | /api/works/popular | — | `period?=all\|day` (default `all`), `page?` (default 1, máximo 100000), `limit?` (default 12, máximo 50), `typeId?` | `Paginated<PopularWork>` |
+
+`visits` cuenta los `POST /works/:workId/visits` aceptados: `all` desde siempre, `day` en las últimas 24 horas (ventana móvil UTC, igual que `visitsLast24Hours`). Incluye todas las obras PUBLISHED y no eliminadas, también con 0 visitas, ordenadas por `visits` descendente, `publishedAt` descendente e `id`. Errores: 400 query inválida.
