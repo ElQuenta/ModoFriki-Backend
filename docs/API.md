@@ -117,11 +117,11 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P2 | DELETE | /api/chapters/:id | admin | — | 204 |
 | P2 | POST / PATCH / DELETE | /api/genres[/:id], /api/tags[/:id] | admin | `{ name }` | `Genre` / `Tag` / 204 |
 
-## Datos de prueba (seed, P1)
-`npx prisma db seed` debe dejar:
-- Las obras, géneros y etiquetas de `ModoFriki-Web/design/olympus/src/data/mockData.ts` (con sus portadas de Unsplash).
-- 3 capítulos por obra, con páginas de ejemplo (`https://picsum.photos/seed/<obra>-<n>-<p>/800/1200`).
-- El usuario admin `admin@modofriki.com` / `Admin12345`.
+## Seed de administrador
+
+Ejecutar `npm run prisma:seed` (equivalente a `npx prisma db seed`) después de aplicar las migraciones y generar el cliente Prisma. Crea el usuario `angeloquenta`, correo `angeloquenta@gmail.com`, rol ADMIN, estado ACTIVE y zona America/La_Paz. La contraseña acordada se guarda únicamente como hash bcrypt con coste 12 en el seed; no se registra en logs.
+
+El seed es repetible por correo normalizado: si la cuenta existe, conserva su identificador y nombre de usuario, restaura la contraseña inicial y la deja ADMIN/ACTIVE, sin duplicarla. No crea obras ni capítulos. Usa la configuración de entorno existente y no conecta a MongoDB. El login acepta contraseñas existentes no vacías de hasta 72 bytes; el registro conserva el mínimo de 8 caracteres.
 
 ## Persistencia (referencia para el backend)
 - **PostgreSQL (Prisma):** User, Work (n-n con Genre y Tag), Chapter (`@@unique([workId, number])`, `pages String[]`), Genre, Tag y Favorite (PK `userId + workId`).
