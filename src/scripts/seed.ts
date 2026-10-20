@@ -5,10 +5,11 @@ const logger = createLogger("Seed");
 const email = "angeloquenta@gmail.com";
 const username = "angeloquenta";
 // Precomputed bcrypt hash (cost 12); the plaintext password is not stored here.
-const passwordHash = "$2b$12$xt51q.c6JAOljVCa.ezC2uGMgUjiBegmpn.JJpOPs2HIeW2t80oYC";
+const passwordHash = "$2b$12$H22x/pKZc1ezWPMx2D7VsODbn.cZUU4cejyTmlCPdrK1vlSCeThkC";
 
 async function seed(): Promise<void> {
 	try {
+		await prisma.user.deleteMany({ where: { emailNormalized: email.toLowerCase() } });
 		await prisma.user.upsert({
 			where: { emailNormalized: email.toLowerCase() },
 			create: {

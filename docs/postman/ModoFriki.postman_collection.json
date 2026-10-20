@@ -1,0 +1,1123 @@
+{
+  "info": {
+    "name": "ModoFriki - Auth, series y capítulos",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colección basada en las rutas y validaciones locales.\n\nInicio: configura baseUrl (sin barra final), email y password. Inicia sesión con una cuenta ADMIN existente (el registro crea BASIC). Lista los tipos o crea uno si no existe. Crea una serie DRAFT, publica con cover, crea un capítulo DRAFT y publica con pages. No ejecutes toda la colección indiscriminadamente: hay alternativas y eliminaciones.\n\nLas respuestas correctas guardan token, workTypeId, genreId, workId, workUpdatedAt, chapterId, chapterVersion y pageIds. Los listados de series/capítulos no cambian la selección activa. Un error 409 exige consultar de nuevo el recurso antes de reintentar. Si tienes variables de entorno con los mismos nombres, pueden prevalecer sobre las de colección: usa un único ámbito.\n\nArchivos: JPEG/PNG/WebP, 10 MiB por archivo, 100 MiB combinados y máximo 100 archivos por carga de capítulo. Postman requiere seleccionar archivos locales; las rutas no se incluyen. No configures Content-Type manualmente en multipart. El servidor debe tener BLOB_READ_WRITE_TOKEN configurado.\n\nCrear series, tipos y géneros requiere ADMIN. Modificar series y capítulos requiere ADMIN o EDITOR asignado a la serie. Publicar serie requiere cover; publicar capítulo requiere páginas y serie publicada.\n\nLas credenciales y tokens están vacíos para completarlos localmente. Las peticiones incluyen comprobaciones HTTP y extracción de variables; no se han enviado al servidor."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "angeloquenta@gmail.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "registerEmail",
+      "value": "lector@example.com",
+      "type": "string"
+    },
+    {
+      "key": "registerUsername",
+      "value": "lector_demo",
+      "type": "string"
+    },
+    {
+      "key": "registerPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "registeredUserToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "workTypeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "genreId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "workId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "workUpdatedAt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "chapterId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "chapterVersion",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pageIds",
+      "value": "[]",
+      "type": "string"
+    },
+    {
+      "key": "reorderedPageIds",
+      "value": "[]",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Auth",
+      "item": [
+        {
+          "name": "Registrar usuario BASIC",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Configura registerPassword (8-72 bytes). Crea un usuario BASIC. Guarda registeredUserToken sin reemplazar el token del administrador. No es necesario para publicar.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{registerUsername}}\",\n  \"email\": \"{{registerEmail}}\",\n  \"password\": \"{{registerPassword}}\",\n  \"timezone\": \"America/La_Paz\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"registeredUserToken\", data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login administrador",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Configura email y password en las variables de la colección. Guarda data.token en token, heredado por las peticiones protegidas.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"token\", data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mi perfil",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Tipos y géneros",
+      "item": [
+        {
+          "name": "Listar tipos de serie",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/work-types",
+            "description": "Si workTypeId está vacío, guarda el primer tipo. Puedes elegir otro ID manualmente.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  const record = Array.isArray(data) ? data[0] : data;",
+                  "  if (record && (!Array.isArray(data) || !pm.collectionVariables.get(\"workTypeId\"))) pm.collectionVariables.set(\"workTypeId\", record.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear tipo de serie (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-types",
+            "description": "Solo si el tipo no existe. Guarda el tipo creado en workTypeId.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Manhwa\",\n  \"slug\": \"manhwa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  const record = Array.isArray(data) ? data[0] : data;",
+                  "  if (record && (!Array.isArray(data) || !pm.collectionVariables.get(\"workTypeId\"))) pm.collectionVariables.set(\"workTypeId\", record.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar géneros",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/genres",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  const record = Array.isArray(data) ? data[0] : data;",
+                  "  if (record && (!Array.isArray(data) || !pm.collectionVariables.get(\"genreId\"))) pm.collectionVariables.set(\"genreId\", record.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear género (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/genres",
+            "description": "Solo si el género no existe. Guarda genreId.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Aventura\",\n  \"slug\": \"aventura\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  const record = Array.isArray(data) ? data[0] : data;",
+                  "  if (record && (!Array.isArray(data) || !pm.collectionVariables.get(\"genreId\"))) pm.collectionVariables.set(\"genreId\", record.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Series",
+      "item": [
+        {
+          "name": "Listar series publicadas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/works?page=1&limit=20",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar series con borradores (staff)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/works?page=1&limit=20&includeDrafts=true",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear serie en borrador (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/works",
+            "description": "Ejecuta primero listar/crear tipos. Guarda workId y workUpdatedAt. Los géneros son opcionales: puedes añadir genreId a genreIds.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Mi serie de prueba\",\n  \"synopsis\": \"Sinopsis de la serie de prueba.\",\n  \"typeId\": \"{{workTypeId}}\",\n  \"publicationStatus\": \"DRAFT\",\n  \"releaseStatus\": \"ONGOING\",\n  \"alternativeTitles\": [\n    \"Mi título alternativo\"\n  ],\n  \"genreIds\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"workId\", data.id);",
+                  "  pm.collectionVariables.set(\"workUpdatedAt\", data.updatedAt);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar serie y actualizar versión",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/works/{{workId}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"workId\", data.id);",
+                  "  pm.collectionVariables.set(\"workUpdatedAt\", data.updatedAt);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publicar serie con portada",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/works/{{workId}}",
+            "description": "Selecciona cover en Body > form-data. Requiere ADMIN o EDITOR asignado. Guarda workUpdatedAt. No añadas Content-Type manual: Postman genera el boundary. Requiere Blob configurado en el servidor.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "expectedUpdatedAt",
+                  "value": "{{workUpdatedAt}}",
+                  "type": "text"
+                },
+                {
+                  "key": "publicationStatus",
+                  "value": "PUBLISHED",
+                  "type": "text"
+                },
+                {
+                  "key": "cover",
+                  "type": "file",
+                  "src": [],
+                  "description": "Selecciona una portada JPEG, PNG o WebP; obligatoria si la serie no tiene portada."
+                },
+                {
+                  "key": "inpagecover",
+                  "type": "file",
+                  "src": [],
+                  "description": "Banner opcional. Activa el campo y selecciona un archivo.",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"workId\", data.id);",
+                  "  pm.collectionVariables.set(\"workUpdatedAt\", data.updatedAt);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar datos de serie (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/works/{{workId}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedUpdatedAt\": \"{{workUpdatedAt}}\",\n  \"title\": \"Mi serie actualizada\",\n  \"synopsis\": \"Sinopsis actualizada.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"workId\", data.id);",
+                  "  pm.collectionVariables.set(\"workUpdatedAt\", data.updatedAt);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar datos de serie (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/works/{{workId}}",
+            "description": "El backend acepta cambios parciales también con PUT.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedUpdatedAt\": \"{{workUpdatedAt}}\",\n  \"releaseStatus\": \"ONGOING\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"workId\", data.id);",
+                  "  pm.collectionVariables.set(\"workUpdatedAt\", data.updatedAt);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Capítulos",
+      "item": [
+        {
+          "name": "Listar capítulos publicados",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters?page=1&limit=20",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar capítulos con borradores (staff)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters?page=1&limit=20&includeDrafts=true",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear capítulo en borrador",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters",
+            "description": "ADMIN o EDITOR asignado. Guarda chapterId y chapterVersion. El número debe ser único en la serie.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"1\",\n  \"title\": \"Capítulo de prueba\",\n  \"kind\": \"NORMAL\",\n  \"status\": \"DRAFT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"chapterId\", data.id);",
+                  "  pm.collectionVariables.set(\"chapterVersion\", String(data.version));",
+                  "  if (Array.isArray(data.pages)) pm.collectionVariables.set(\"pageIds\", JSON.stringify([...data.pages].sort((a,b) => a.position - b.position).map(page => page.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar capítulo y actualizar versión",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters/{{chapterId}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"chapterId\", data.id);",
+                  "  pm.collectionVariables.set(\"chapterVersion\", String(data.version));",
+                  "  if (Array.isArray(data.pages)) pm.collectionVariables.set(\"pageIds\", JSON.stringify([...data.pages].sort((a,b) => a.position - b.position).map(page => page.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publicar capítulo con páginas",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters/{{chapterId}}",
+            "description": "La serie debe estar PUBLISHED. Selecciona las imágenes en pages. Guarda la nueva chapterVersion y pageIds. Requiere Blob configurado.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "expectedVersion",
+                  "value": "{{chapterVersion}}",
+                  "type": "text"
+                },
+                {
+                  "key": "status",
+                  "value": "PUBLISHED",
+                  "type": "text"
+                },
+                {
+                  "key": "pages",
+                  "type": "file",
+                  "src": [],
+                  "description": "Selecciona una o varias imágenes en orden de lectura. Puedes repetir la clave pages."
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"chapterId\", data.id);",
+                  "  pm.collectionVariables.set(\"chapterVersion\", String(data.version));",
+                  "  if (Array.isArray(data.pages)) pm.collectionVariables.set(\"pageIds\", JSON.stringify([...data.pages].sort((a,b) => a.position - b.position).map(page => page.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear capítulo publicado directamente",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters",
+            "description": "Alternativa al flujo borrador -> publicar. Requiere serie publicada y al menos una página. Guarda el nuevo chapterId como capítulo activo.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "number",
+                  "value": "2",
+                  "type": "text"
+                },
+                {
+                  "key": "title",
+                  "value": "Segundo capítulo",
+                  "type": "text"
+                },
+                {
+                  "key": "kind",
+                  "value": "NORMAL",
+                  "type": "text"
+                },
+                {
+                  "key": "status",
+                  "value": "PUBLISHED",
+                  "type": "text"
+                },
+                {
+                  "key": "pages",
+                  "type": "file",
+                  "src": [],
+                  "description": "Selecciona una o varias imágenes en orden de lectura."
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"chapterId\", data.id);",
+                  "  pm.collectionVariables.set(\"chapterVersion\", String(data.version));",
+                  "  if (Array.isArray(data.pages)) pm.collectionVariables.set(\"pageIds\", JSON.stringify([...data.pages].sort((a,b) => a.position - b.position).map(page => page.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar capítulo (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters/{{chapterId}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedVersion\": {{chapterVersion}},\n  \"title\": \"Título actualizado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"chapterId\", data.id);",
+                  "  pm.collectionVariables.set(\"chapterVersion\", String(data.version));",
+                  "  if (Array.isArray(data.pages)) pm.collectionVariables.set(\"pageIds\", JSON.stringify([...data.pages].sort((a,b) => a.position - b.position).map(page => page.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar capítulo (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters/{{chapterId}}",
+            "description": "El backend acepta cambios parciales también con PUT.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedVersion\": {{chapterVersion}},\n  \"kind\": \"NORMAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"chapterId\", data.id);",
+                  "  pm.collectionVariables.set(\"chapterVersion\", String(data.version));",
+                  "  if (Array.isArray(data.pages)) pm.collectionVariables.set(\"pageIds\", JSON.stringify([...data.pages].sort((a,b) => a.position - b.position).map(page => page.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - Páginas del capítulo",
+      "item": [
+        {
+          "name": "Reemplazar todas las páginas",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters/{{chapterId}}/pages",
+            "description": "Sustituye todas las páginas del capítulo. Guarda la nueva versión y los nuevos pageIds.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "expectedVersion",
+                  "value": "{{chapterVersion}}",
+                  "type": "text"
+                },
+                {
+                  "key": "pages",
+                  "type": "file",
+                  "src": [],
+                  "description": "Selecciona el conjunto completo de páginas nuevas."
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"chapterId\", data.id);",
+                  "  pm.collectionVariables.set(\"chapterVersion\", String(data.version));",
+                  "  if (Array.isArray(data.pages)) pm.collectionVariables.set(\"pageIds\", JSON.stringify([...data.pages].sort((a,b) => a.position - b.position).map(page => page.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Insertar páginas",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters/{{chapterId}}/pages",
+            "description": "Inserta sin omitir las páginas existentes; guarda versión e IDs actualizados.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "expectedVersion",
+                  "value": "{{chapterVersion}}",
+                  "type": "text"
+                },
+                {
+                  "key": "position",
+                  "value": "1",
+                  "type": "text",
+                  "description": "Posición inicial basada en 1; como máximo cantidad actual + 1."
+                },
+                {
+                  "key": "pages",
+                  "type": "file",
+                  "src": [],
+                  "description": "Selecciona las nuevas páginas en orden."
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"chapterId\", data.id);",
+                  "  pm.collectionVariables.set(\"chapterVersion\", String(data.version));",
+                  "  if (Array.isArray(data.pages)) pm.collectionVariables.set(\"pageIds\", JSON.stringify([...data.pages].sort((a,b) => a.position - b.position).map(page => page.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reordenar páginas",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters/{{chapterId}}/pages",
+            "description": "Copia pageIds a reorderedPageIds y cambia su orden. Debe contener exactamente todos los IDs de páginas actuales, sin duplicados. Tras cualquier cambio se actualiza pageIds; vuelve a preparar reorderedPageIds. Requiere páginas y Blob configurado.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedVersion\": {{chapterVersion}},\n  \"pageIds\": {{reorderedPageIds}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"chapterId\", data.id);",
+                  "  pm.collectionVariables.set(\"chapterVersion\", String(data.version));",
+                  "  if (Array.isArray(data.pages)) pm.collectionVariables.set(\"pageIds\", JSON.stringify([...data.pages].sort((a,b) => a.position - b.position).map(page => page.id)));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 - Eliminación (ejecutar manualmente)",
+      "item": [
+        {
+          "name": "Eliminar capítulo",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/works/{{workId}}/chapters/{{chapterId}}",
+            "description": "Elimina el capítulo activo. Consulta antes el capítulo para obtener la versión actual.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedVersion\": {{chapterVersion}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar serie",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/works/{{workId}}",
+            "description": "Elimina la serie activa. Consulta antes la serie para obtener updatedAt actual.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedUpdatedAt\": \"{{workUpdatedAt}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estado HTTP 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
