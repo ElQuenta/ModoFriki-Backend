@@ -7,6 +7,9 @@ export interface LatestChapter {
 	kind: ChapterKind; publishedAt: Date; work: WorkRef;
 }
 export interface LatestChaptersQuery { page: number; limit: number; typeId?: string }
+export interface PopularWork { work: WorkRef; visits: number }
+export interface PopularWorksQuery { period: "all" | "day"; page: number; limit: number; typeId?: string }
 export interface DiscoveryRepositoryContract {
 	listLatestChapters(query: LatestChaptersQuery): Promise<Paginated<LatestChapter>>;
+	listPopularWorks(query: PopularWorksQuery): Promise<Paginated<PopularWork>>;
 }

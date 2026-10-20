@@ -6,6 +6,7 @@ export function createDiscoveryRouter(service: DiscoveryService = discoveryServi
 	const router = Router();
 	const controller = new DiscoveryController(service);
 	router.get("/chapters/latest", controller.listLatestChapters);
+	router.get("/works/popular", controller.listPopularWorks);
 	return router;
 }
 
