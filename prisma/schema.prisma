@@ -324,11 +324,23 @@ model ChapterReadEvent {
   idempotencyKey  String    @unique @db.Uuid
   chapter         Chapter   @relation(fields: [chapterId], references: [id], onDelete: Restrict)
   user            User?     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  receipts        ChapterReadReceipt[]
 
   // SQL migration adds the partial daily uniqueness constraint for registered users.
   @@index([chapterId, occurredAt])
   @@index([userId, localDate])
   @@index([occurredAt])
+}
+
+// A receipt preserves every request key even when daily read counting deduplicates.
+// The canonical event owns the chapter and optional user identity.
+model ChapterReadReceipt {
+  idempotencyKey String           @id @db.Uuid
+  eventId        String           @db.Uuid
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  event          ChapterReadEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@index([eventId])
 }
 
 model WorkVisitEvent {

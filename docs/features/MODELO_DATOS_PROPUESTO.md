@@ -2,6 +2,8 @@
 
 Fecha: 19 de octubre de 2026. Estado: propuesta actualizada para implementar la base de persistencia; las funcionalidades HTTP y los procesos operativos quedan para etapas posteriores. Plan de esta entrega: [PERSISTENCIA_INICIAL.md](PERSISTENCIA_INICIAL.md).
 
+La implementación de [biblioteca y actividad](user-reading.md) y el contrato vigente en [API.md](../API.md#biblioteca-y-actividad-de-lectura) actualizan la propuesta de lectura de este documento: el frontend envía POST al abrir el capítulo; los GET no escriben. PUT manual marca capítulos previos a la cuenta sin crear eventos ni incrementar rachas. ChapterReadReceipt conserva cada clave de operación y referencia el evento diario canónico, para mantener la idempotencia incluso entre días. Estos contratos implementados prevalecen sobre las propuestas de finalización y marcado con eventos que aparecen más abajo.
+
 ## Objetivo y decisiones de alcance
 
 Definir entidades, relaciones, reglas e identificación antes de implementar catálogo, publicación de capítulos, biblioteca personal, actividad de lectura y comunidad.

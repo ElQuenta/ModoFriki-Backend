@@ -10,12 +10,14 @@ Si algo tiene que cambiar, se avisa al otro y se actualiza este archivo antes de
 
 El contrato implementado de obras, capítulos y archivos se especifica en «Catálogo implementado» al final. Sustituye las propuestas anteriores de este documento para esas rutas, modelos y límites. Favoritos, lecturas, puntuaciones y visitas siguen fuera de este módulo.
 
+El contrato de biblioteca, visitas y actividad implementado se describe en «Biblioteca y actividad de lectura» al final de este archivo y sustituye las propuestas anteriores de favoritos y vistas.
+
 ## Convenciones
 - Base: `/api`. JSON en camelCase. Los ids son `string` UUID en PostgreSQL y Community MongoDB. Las fechas, `string` ISO 8601.
 - Respuesta OK: `{ "success": true, "code": 200, "data": <T> }`. Error: `{ "success": false, "code": 4xx, "error": { "message": "..." } }`.
 - Paginados futuros de catálogo: query `?page=1&limit=20` (`limit` máximo 50), `Paginated<T>`. Community usa `CursorPage<T>` y limit máximo 100, según contrato siguiente.
 - Auth: header `Authorization: Bearer <token>` (JWT de 7 días). Códigos: 401 sin token o token inválido, 403 sin rol, 404 no existe, 409 duplicado (email, username, slug).
-- CORS habilitado para `http://localhost:5173` y para el dominio del frontend desplegado.
+- CORS habilitado temporalmente para cualquier origen (`Access-Control-Allow-Origin: *`).
 
 ## Formas de `data`
 ```ts
@@ -158,3 +160,43 @@ Carpeta estable de obra: `<slug-titulo>-<uuid4>/Covers/<uuid4>.<ext>` y `CoverPa
 La recepción con Multer, la validación y las operaciones `put`/`copy`/`del` de Blob se ejecutan en middlewares. El servicio construye el plan de negocio y los repositorios confirman las referencias. No existe limpieza periódica ni por vencimiento. Los archivos vencidos, abandonados o de subidas fallidas se conservan; al realizar una nueva mutación se liberan únicamente las reservas vencidas en PostgreSQL. El middleware de borrado se ejecuta después del commit de páginas, comprueba que los archivos pertenecen al capítulo y que no tienen referencias, y borra solo la generación sustituida. Si Blob rechaza ese borrado, se conserva la nueva versión confirmada y se registra un warning; no se programa un reintento automático. Los temporales locales de Multer se retiran al terminar la petición. Una creación de capítulo fallida puede reusar su reserva oculta al reintentar el mismo número; un capítulo confirmado y luego eliminado conserva ese número.
 
 El almacenamiento Blob configurado por este pipeline es público: ocultar un borrador en la API no vuelve privadas sus URLs. Las imágenes se validan por firma y estructura (PNG también verifica su raster); JPEG/WebP no se decodifican completamente. Para verificar el proveedor se necesita un almacén de pruebas con `BLOB_READ_WRITE_TOKEN`; las pruebas automatizadas simulan Blob y no usan credenciales reales.
+
+## Biblioteca y actividad de lectura
+
+Este contrato sustituye las propuestas antiguas de favoritos y conteo de vistas. Todas las rutas usan la base `/api`, los envelopes existentes y UUID v4. Todas las cuentas ACTIVE (BASIC, EDITOR, ADMIN) acceden únicamente a su biblioteca desde el token; no se acepta userId del cliente.
+
+| Método | Ruta | Auth | Entrada / resultado data |
+| --- | --- | --- | --- |
+| POST | /works/:workId/visits | Opcional | Body `{idempotencyKey: UUID}`; `{counted,occurredAt}` |
+| GET | /works/:workId/stats | Pública | `{workId,visits,visitsLast24Hours,reads,readsLast24Hours,favorites,ratings,averageRating}` |
+| POST | /chapters/:chapterId/read-events | Opcional | Body `{idempotencyKey: UUID}`; `{counted,occurredAt,isRead?}` |
+| PUT | /me/read-chapters/:chapterId | Obligatoria | Sin body; estado leído `{chapterId,isRead,firstReadAt,lastReadAt}` |
+| DELETE | /me/read-chapters/:chapterId | Obligatoria | Desmarcar, respuesta 204 |
+| GET | /me/favorites | Obligatoria | Query page/limit; página de `{work,createdAt}` |
+| PUT | /me/favorites/:workId | Obligatoria | Sin body; `{workId,isFavorite:true}` |
+| DELETE | /me/favorites/:workId | Obligatoria | Retirar, respuesta 204 |
+| PUT | /works/:workId/rating | Obligatoria | Body `{score:0..5}` en pasos de 0.5; `{workId,score}` |
+| DELETE | /works/:workId/rating | Obligatoria | Retirar valoración, respuesta 204 |
+| GET | /me/reading-history | Obligatoria | Query page/limit; estados leídos con capítulo y obra |
+| GET | /me/works/:workId/progress | Obligatoria | Query page/limit para capítulos; favorito, score, progreso |
+| GET | /me/reading-calendar | Obligatoria | Query from/to YYYY-MM-DD; `{timezone,from,to,days:[{date,chaptersRead}]}` |
+| GET | /me/reading-stats | Obligatoria | Cantidades de lectura y rachas del usuario |
+
+Páginas: `{items,total,page,limit}`, page por defecto 1 (máximo 100000), limit por defecto 20 (máximo 100). Resumen de obra: `{id,title,slug,coverUrl}`. Historial: `{chapterId,isRead,firstReadAt,lastReadAt,work,chapter:{id,number,title}}`; number es decimal serializado como string. Progreso: `{workId,isFavorite,score,totalChapters,readChapters,completionPercentage,chapters:{items,total,page,limit}}`; cada capítulo incluye id, número, título y estado de lectura. Solo se listan obras y capítulos publicados y no eliminados. Los DELETE permiten retirar relaciones propias aunque el contenido ya esté oculto.
+
+Estadísticas propias: `{markedReadChapters,favorites,recordedReads,activeDays,readsToday,readsLast7Days,readsLast30Days,currentStreak,longestStreak,lastReadingDate,timezone}`. Las lecturas registradas incluyen relecturas en días distintos; markedReadChapters representa el estado actual. Calendario permite como máximo 366 días inclusivos; por defecto muestra los últimos 365 días en la zona del usuario. Las fechas de actividad conservan el día local y zona al crear el evento. La racha actual termina hoy o ayer; la máxima comprende toda la actividad registrada. No se mide tiempo de lectura ni se infiere cuánto tardó el usuario.
+
+### Integración del lector
+
+1. Al abrir una ficha, el frontend obtiene la obra por GET y envía POST a su endpoint visits.
+2. Al entrar a leer un capítulo, obtiene el capítulo por GET y envía POST a read-events. Genera un UUID por operación y lo conserva para sus reintentos. Con Bearer válido, la operación registra la actividad y marca leído de forma atómica; sin token, registra únicamente una lectura anónima.
+3. Para capítulos leídos antes de crear la cuenta, llama PUT /me/read-chapters/:chapterId. Marca el estado sin sumar eventos ni inflar la racha de hoy. Puede repetirlo para cada capítulo seleccionado.
+4. Para mostrar los marcadores, consulta el progreso de la obra. Para la biblioteca y panel personal, usa favorites, reading-history, reading-calendar y reading-stats.
+
+Los GET de catálogo no escriben eventos. La apertura se registra mediante el POST del cliente. No se requiere haber descargado todas las páginas para marcar leído. Las fechas firstReadAt/lastReadAt de un marcado manual indican cuándo se registró ese estado, no una fecha histórica de lectura conocida. No se aceptan fechas de lectura del cliente. El calendario incluye los días sin actividad con cero.
+
+Despliegue: aplicar primero la migración aditiva de ChapterReadReceipt con el procedimiento de migraciones del proyecto y regenerar el cliente Prisma. Esta entrega prepara la migración, sin ejecutarla contra la base de datos. Los recibos conservan también las claves de aperturas deduplicadas por día; no eliminarlos como mecanismo de limpieza, pues se perdería la garantía de reintento.
+
+Una clave de operación repetida no suma otra visita/lectura. Reutilizarla en otro destino o contexto de identidad devuelve 409. Para registrados, solo un evento por capítulo y día local contribuye a estadísticas y racha. Desmarcar no borra los eventos históricos; un reintento de un evento previo tampoco restaura un estado desmarcado. Favoritos y valoraciones son únicos por usuario/obra. Score cero es válido y sin valoraciones averageRating es null. Las métricas de 24 horas usan una ventana móvil UTC. Las lecturas anónimas son eventos aceptados, no personas únicas verificadas; la idempotencia no impide fabricar nuevas operaciones.
+
+Errores: 400 entrada/UUID/fecha/rango inválidos; 401 token ausente en rutas privadas o inválido en autenticación opcional; 404 destino no publicado/inexistente; 409 clave reutilizada en otro contexto o conflicto concurrente; 500 error interno seguro. No se expone identidad de lectores en estadísticas públicas.
