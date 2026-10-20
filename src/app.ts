@@ -43,5 +43,27 @@ app.use((_request, response) => {
 	ErrorResponseHandler(response, new AppError("Route not found", 404));
 });
 
+// Express solo lo reconoce como error handler si declara los 4 parámetros.
+const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
+	if (response.headersSent) {
+		next(error);
+		return;
+	}
+
+	// Errores 4xx de body-parser (JSON malformado, body grande, charset) y de decodificación de params.
+	const status: unknown = error?.status;
+	if (typeof status === "number" && status >= 400 && status < 500) {
+		ErrorResponseHandler(response, new AppError(bodyErrorMessages[error.type] ?? error.message, status));
+		return;
+	}
+
+	logger.error("Unhandled error", {
+		error: error instanceof Error ? error.message : String(error),
+		stack: error instanceof Error ? error.stack : undefined
+	});
+	ErrorResponseHandler(response, error);
+};
+
+app.use(errorHandler);
 
 export default app;
