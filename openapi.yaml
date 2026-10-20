@@ -504,6 +504,53 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/chapters/latest:
+    get:
+      tags:
+        - Discovery
+      summary: Últimos capítulos publicados (Novedades)
+      description: >-
+        Capítulos PUBLISHED y no eliminados de obras PUBLISHED y no eliminadas,
+        ordenados por publishedAt descendente e id. Un typeId inexistente
+        devuelve una página vacía. Se rechazan claves de query desconocidas.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+        - name: typeId
+          in: query
+          required: false
+          description: UUID de /api/work-types
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LatestChapterPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
   /api/auth/register:
     post:
       tags: [Auth]
@@ -2029,6 +2076,59 @@ components:
           nullable: true
           minimum: 0
           maximum: 5
+    WorkRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        coverUrl:
+          type: string
+          nullable: true
+    LatestChapter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workId:
+          type: string
+          format: uuid
+        number:
+          type: string
+          description: Decimal serializado
+        title:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum: [NORMAL, EXTRA, ANNOUNCEMENT]
+        publishedAt:
+          type: string
+          format: date-time
+        work:
+          $ref: "#/components/schemas/WorkRef"
+    LatestChapterPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LatestChapter"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
     SuccessEnvelope:
       type: object
       required: [success, code, data]
