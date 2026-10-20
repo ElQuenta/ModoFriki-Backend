@@ -292,6 +292,916 @@ paths:
                       status:
                         type: string
                         example: ok
+  /api/works:
+    get:
+      tags:
+        - Catalog
+      summary: Listar obras publicadas; includeDrafts requiere personal autorizado
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+      parameters: &a14
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          schema: &a2
+            type: string
+        - name: typeId
+          in: query
+          schema: &a1
+            type: string
+            format: uuid
+        - name: genreId
+          in: query
+          schema: *a1
+        - name: includeDrafts
+          in: query
+          schema:
+            type: boolean
+            default: false
+    post:
+      tags:
+        - Catalog
+      summary: Crear obra ADMIN; portada opcional para DRAFT
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: &a3
+                  type: string
+                  maxLength: 200
+                synopsis: &a4
+                  type: string
+                  maxLength: 30000
+                typeId: *a1
+                publicationStatus: &a5
+                  type: string
+                  enum:
+                    - DRAFT
+                    - PUBLISHED
+                releaseStatus: &a6
+                  type: string
+                  enum:
+                    - ONGOING
+                    - COMPLETED
+                    - HIATUS
+                    - CANCELLED
+                alternativeTitles: &a7
+                  type: array
+                  items: *a2
+                  maxItems: 50
+                genreIds: &a8
+                  type: array
+                  items: *a1
+                  maxItems: 50
+              required: &a10
+                - title
+                - synopsis
+                - typeId
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                cover: &a9
+                  type: string
+                  format: binary
+                inpagecover: *a9
+              required: *a10
+            encoding:
+              cover:
+                contentType: image/jpeg, image/png, image/webp
+              inpagecover:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "201":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/works/{workId}:
+    parameters:
+      - name: workId
+        in: path
+        required: true
+        schema: *a1
+    get:
+      tags:
+        - Catalog
+      summary: Obtener obra visible y sus medios
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    put:
+      tags:
+        - Catalog
+      summary: Editar metadatos; archivos opcionales; omitir conserva medios
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                expectedUpdatedAt: &a11
+                  type: string
+                  format: date-time
+              required: &a12
+                - expectedUpdatedAt
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                expectedUpdatedAt: *a11
+                cover: *a9
+                inpagecover: *a9
+              required: *a12
+            encoding:
+              cover:
+                contentType: image/jpeg, image/png, image/webp
+              inpagecover:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    patch:
+      tags:
+        - Catalog
+      summary: Editar obra parcialmente
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                expectedUpdatedAt: *a11
+              required: &a13
+                - expectedUpdatedAt
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: *a3
+                synopsis: *a4
+                typeId: *a1
+                publicationStatus: *a5
+                releaseStatus: *a6
+                alternativeTitles: *a7
+                genreIds: *a8
+                expectedUpdatedAt: *a11
+                cover: *a9
+                inpagecover: *a9
+              required: *a13
+            encoding:
+              cover:
+                contentType: image/jpeg, image/png, image/webp
+              inpagecover:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    delete:
+      tags:
+        - Catalog
+      summary: Retirar obra y cap?tulos; encolar limpieza
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedUpdatedAt: *a11
+              required:
+                - expectedUpdatedAt
+      responses:
+        "204":
+          description: Retirado
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/works/{workId}/chapters:
+    parameters:
+      - name: workId
+        in: path
+        required: true
+        schema: *a1
+    get:
+      tags:
+        - Catalog
+      summary: Listar cap?tulos por n?mero ascendente
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+      parameters: *a14
+    post:
+      tags:
+        - Catalog
+      summary: Crear cap?tulo; publicar exige p?ginas y obra publicada
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: &a15
+                  oneOf:
+                    - type: string
+                      pattern: ^\d{1,9}(?:\.\d{1,3})?$
+                    - type: number
+                      minimum: 0
+                      maximum: 999999999.999
+                title: &a16
+                  type: string
+                  nullable: true
+                  maxLength: 200
+                kind: &a17
+                  type: string
+                  enum:
+                    - NORMAL
+                    - EXTRA
+                    - ANNOUNCEMENT
+                status: *a5
+              required: &a18
+                - number
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                pages: &a20
+                  type: array
+                  items: *a9
+                  minItems: 1
+                  maxItems: 100
+              required: *a18
+            encoding:
+              pages:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "201":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/works/{workId}/chapters/{chapterId}:
+    parameters:
+      - name: workId
+        in: path
+        required: true
+        schema: *a1
+      - name: chapterId
+        in: path
+        required: true
+        schema: *a1
+    get:
+      tags:
+        - Catalog
+      summary: Obtener cap?tulo visible y p?ginas ordenadas
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    put:
+      tags:
+        - Catalog
+      summary: Editar cap?tulo; p?ginas opcionales reemplazan el conjunto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                expectedVersion: &a19
+                  type: integer
+                  minimum: 1
+              required: &a21
+                - expectedVersion
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                expectedVersion: *a19
+                pages: *a20
+              required: *a21
+            encoding:
+              pages:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    patch:
+      tags:
+        - Catalog
+      summary: Editar cap?tulo parcialmente; omitir p?ginas las conserva
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                expectedVersion: *a19
+              required: &a22
+                - expectedVersion
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                number: *a15
+                title: *a16
+                kind: *a17
+                status: *a5
+                expectedVersion: *a19
+                pages: *a20
+              required: *a22
+            encoding:
+              pages:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    delete:
+      tags:
+        - Catalog
+      summary: Retirar cap?tulo y encolar limpieza
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedVersion: *a19
+              required:
+                - expectedVersion
+      responses:
+        "204":
+          description: Retirado
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/works/{workId}/chapters/{chapterId}/pages:
+    parameters:
+      - name: workId
+        in: path
+        required: true
+        schema: *a1
+      - name: chapterId
+        in: path
+        required: true
+        schema: *a1
+    put:
+      tags:
+        - Catalog
+      summary: Reemplazar p?ginas completas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedVersion: *a19
+                pages: *a20
+              required:
+                - expectedVersion
+                - pages
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    post:
+      tags:
+        - Catalog
+      summary: Insertar p?ginas en posici?n desde 1 y renumerar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedVersion: *a19
+                position:
+                  type: integer
+                  minimum: 1
+                pages: *a20
+              required:
+                - expectedVersion
+                - position
+                - pages
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    patch:
+      tags:
+        - Catalog
+      summary: Reordenar con permutaci?n exacta de pageIds, JSON sin archivos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                expectedVersion: *a19
+                pageIds:
+                  type: array
+                  items: *a1
+                  uniqueItems: true
+                  minItems: 1
+                  maxItems: 1000
+              required:
+                - expectedVersion
+                - pageIds
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/work-types:
+    get:
+      tags:
+        - Catalog
+      summary: Listar tipos de obra
+      security: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    post:
+      tags:
+        - Catalog
+      summary: Crear tipo de obra ADMIN
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: *a2
+                slug:
+                  type: string
+                  pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+              required:
+                - name
+                - slug
+      responses:
+        "201":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+  /api/genres:
+    get:
+      tags:
+        - Catalog
+      summary: Listar g?neros
+      security: []
+      responses:
+        "200":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
+    post:
+      tags:
+        - Catalog
+      summary: Crear g?nero ADMIN
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: *a2
+                slug:
+                  type: string
+                  pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+              required:
+                - name
+                - slug
+      responses:
+        "201":
+          description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
+            strings
+        "400":
+          description: Entrada inv?lida
+        "401":
+          description: Sesi?n requerida/inv?lida
+        "403":
+          description: Sin permiso
+        "404":
+          description: Recurso no visible
+        "409":
+          description: Versi?n, nombre o ruta en conflicto
+        "413":
+          description: L?mite de archivos
+        "415":
+          description: Contenido de imagen inv?lido
+        "503":
+          description: Blob no configurado
 components:
   securitySchemes:
     bearerAuth:
