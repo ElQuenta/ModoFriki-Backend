@@ -229,3 +229,13 @@ interface PopularWork { work: WorkRef; visits: number }
 | P1 | GET | /api/works/popular | — | `period?=all\|day` (default `all`), `page?` (default 1, máximo 100000), `limit?` (default 12, máximo 50), `typeId?` | `Paginated<PopularWork>` |
 
 `visits` cuenta los `POST /works/:workId/visits` aceptados: `all` desde siempre, `day` en las últimas 24 horas (ventana móvil UTC, igual que `visitsLast24Hours`). Incluye todas las obras PUBLISHED y no eliminadas, también con 0 visitas, ordenadas por `visits` descendente, `publishedAt` descendente e `id`. Errores: 400 query inválida.
+
+```ts
+interface RecommendedWorks { basis: "genres" | "popular"; items: PopularWork[] }
+```
+
+| P | Método | Ruta | Auth | Query | `data` |
+|---|---|---|---|---|---|
+| P1 | GET | /api/works/recommended | —, Bearer opcional validado | `limit?` (default 12, máximo 50) | `RecommendedWorks` |
+
+Con sesión se toman los géneros de las obras favoritas del usuario (el id sale del token; no se acepta `userId`). Se excluyen sus favoritos y se ordenan las obras PUBLISHED y no eliminadas por cantidad de géneros coincidentes descendente y después como `popular` con `period=all` (`visits` total, `publishedAt`, `id`). `basis` es `"genres"` si el usuario tiene al menos un favorito con géneros; si no, o sin sesión, `"popular"` y el orden es el de `popular`. Errores: 400 query inválida, 401 token inválido.

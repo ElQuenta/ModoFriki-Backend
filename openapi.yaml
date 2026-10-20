@@ -607,6 +607,44 @@ paths:
                         $ref: "#/components/schemas/PopularWorkPage"
         "400":
           $ref: "#/components/responses/BadRequest"
+  /api/works/recommended:
+    get:
+      tags:
+        - Discovery
+      summary: Obras recomendadas por géneros de favoritos
+      description: >-
+        Pública con Bearer opcional; si se envía, debe ser válido. Con sesión
+        excluye los favoritos del usuario y ordena las obras PUBLISHED y no
+        eliminadas por géneros coincidentes descendente, luego como popular
+        (period=all). basis es genres si el usuario tiene al menos un favorito
+        con géneros; si no, o sin sesión, popular. El id sale del token; se
+        rechazan claves de query desconocidas (incluida userId).
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RecommendedWorks"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/auth/register:
     post:
       tags: [Auth]
@@ -2194,6 +2232,18 @@ components:
         visits:
           type: integer
           minimum: 0
+    RecommendedWorks:
+      type: object
+      required: [basis, items]
+      properties:
+        basis:
+          type: string
+          enum: [genres, popular]
+        items:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/PopularWork"
     PopularWorkPage:
       type: object
       required: [items, total, page, limit]

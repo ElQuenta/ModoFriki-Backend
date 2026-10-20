@@ -16,4 +16,9 @@ export class DiscoveryController {
 	}
 	listLatestChapters = this.handle(async (req, res) => { SuccessResponseHandler(res, await this.service.listLatestChapters(req.query)); });
 	listPopularWorks = this.handle(async (req, res) => { SuccessResponseHandler(res, await this.service.listPopularWorks(req.query)); });
+	listRecommendedWorks = this.handle(async (req, res) => {
+		res.set("Cache-Control", "private, no-store");
+		res.vary("Authorization");
+		SuccessResponseHandler(res, await this.service.listRecommendedWorks(req.query, res.locals.user?.id));
+	});
 }

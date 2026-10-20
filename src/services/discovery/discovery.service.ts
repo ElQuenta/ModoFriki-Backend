@@ -1,6 +1,6 @@
 import { discoveryRepository } from "../../repositories/discovery/discovery.repository";
-import type { DiscoveryRepositoryContract, LatestChapter, LatestChaptersQuery, Paginated, PopularWork, PopularWorksQuery } from "../../types/discovery.types";
-import { latestChaptersQuerySchema, popularWorksQuerySchema, validateDiscovery } from "../../middlewares/schemas/discovery.schema";
+import type { DiscoveryRepositoryContract, LatestChapter, LatestChaptersQuery, Paginated, PopularWork, PopularWorksQuery, RecommendedWorks, RecommendedWorksQuery } from "../../types/discovery.types";
+import { latestChaptersQuerySchema, popularWorksQuerySchema, recommendedWorksQuerySchema, validateDiscovery } from "../../middlewares/schemas/discovery.schema";
 import { catchAndLogError, createLogger } from "../../utils/logger";
 
 const logger = createLogger("DiscoveryService");
@@ -16,6 +16,12 @@ export class DiscoveryService {
 	}
 	listPopularWorks(input: unknown): Promise<Paginated<PopularWork>> {
 		return this.run(() => this.repository.listPopularWorks(validateDiscovery<PopularWorksQuery>(popularWorksQuerySchema, input)));
+	}
+	listRecommendedWorks(input: unknown, userId?: string): Promise<RecommendedWorks> {
+		return this.run(() => {
+			const { limit } = validateDiscovery<Pick<RecommendedWorksQuery, "limit">>(recommendedWorksQuerySchema, input);
+			return this.repository.listRecommendedWorks({ userId, limit });
+		});
 	}
 }
 

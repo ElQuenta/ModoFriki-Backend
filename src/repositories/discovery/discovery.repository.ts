@@ -1,6 +1,6 @@
 import prisma from "../../config/database/postgres";
 import { Prisma, type PrismaClient } from "../../generated/prisma/client";
-import type { DiscoveryRepositoryContract, LatestChapter, LatestChaptersQuery, Paginated, PopularWork, PopularWorksQuery } from "../../types/discovery.types";
+import type { DiscoveryRepositoryContract, LatestChapter, LatestChaptersQuery, Paginated, PopularWork, PopularWorksQuery, RecommendedWorks, RecommendedWorksQuery } from "../../types/discovery.types";
 import { catchAndLogError, createLogger } from "../../utils/logger";
 import { summarySelect, visibleChapter, visibleWork, workSummary } from "../reading/reading.persistence";
 
@@ -47,13 +47,37 @@ export class DiscoveryRepository implements DiscoveryRepositoryContract {
 					LIMIT ${limit} OFFSET ${(page - 1) * limit}`,
 				this.client.work.count({ where: { ...visibleWork, ...(typeId ? { typeId } : {}) } })
 			]);
-			const works = await this.client.work.findMany({ where: { id: { in: rows.map(row => row.id) } }, select: summarySelect });
-			const byId = new Map(works.map(work => [work.id, workSummary(work)]));
-			const items = rows.flatMap(row => {
-				const work = byId.get(row.id);
-				return work ? [{ work, visits: Number(row.visits) }] : [];
-			});
-			return { items, total, page, limit };
+			return { items: await this.hydrate(rows), total, page, limit };
+		});
+	}
+
+	async listRecommendedWorks({ userId, limit }: RecommendedWorksQuery): Promise<RecommendedWorks> {
+		return this.run("Unable to list recommended works", async () => {
+			const uid = userId ?? null;
+			const [rows, withGenres] = await Promise.all([
+				this.client.$queryRaw<{ id: string; visits: bigint }[]>`
+					SELECT w."id",
+						(SELECT COUNT(*) FROM "WorkVisitEvent" v WHERE v."workId" = w."id") AS visits,
+						(SELECT COUNT(*) FROM "WorkGenre" wg WHERE wg."workId" = w."id" AND wg."genreId" IN (
+							SELECT fg."genreId" FROM "Favorite" f JOIN "WorkGenre" fg ON fg."workId" = f."workId"
+							WHERE f."userId" = ${uid}::uuid)) AS matched
+					FROM "Work" w
+					WHERE w."publicationStatus" = 'PUBLISHED' AND w."deletedAt" IS NULL
+						AND NOT EXISTS (SELECT 1 FROM "Favorite" f WHERE f."workId" = w."id" AND f."userId" = ${uid}::uuid)
+					ORDER BY matched DESC, visits DESC, w."publishedAt" DESC NULLS LAST, w."id" DESC
+					LIMIT ${limit}`,
+				userId ? this.client.favorite.count({ where: { userId, work: { genres: { some: {} } } } }) : Promise.resolve(0)
+			]);
+			return { basis: withGenres > 0 ? "genres" : "popular", items: await this.hydrate(rows) };
+		});
+	}
+
+	private async hydrate(rows: { id: string; visits: bigint }[]): Promise<PopularWork[]> {
+		const works = await this.client.work.findMany({ where: { id: { in: rows.map(row => row.id) } }, select: summarySelect });
+		const byId = new Map(works.map(work => [work.id, workSummary(work)]));
+		return rows.flatMap(row => {
+			const work = byId.get(row.id);
+			return work ? [{ work, visits: Number(row.visits) }] : [];
 		});
 	}
 }

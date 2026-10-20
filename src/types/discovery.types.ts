@@ -9,7 +9,10 @@ export interface LatestChapter {
 export interface LatestChaptersQuery { page: number; limit: number; typeId?: string }
 export interface PopularWork { work: WorkRef; visits: number }
 export interface PopularWorksQuery { period: "all" | "day"; page: number; limit: number; typeId?: string }
+export interface RecommendedWorks { basis: "genres" | "popular"; items: PopularWork[] }
+export interface RecommendedWorksQuery { userId?: string; limit: number }
 export interface DiscoveryRepositoryContract {
 	listLatestChapters(query: LatestChaptersQuery): Promise<Paginated<LatestChapter>>;
 	listPopularWorks(query: PopularWorksQuery): Promise<Paginated<PopularWork>>;
+	listRecommendedWorks(query: RecommendedWorksQuery): Promise<RecommendedWorks>;
 }
