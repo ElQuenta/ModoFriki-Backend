@@ -8,6 +8,8 @@ import config from "./config/env";
 import { ErrorResponseHandler } from "./handlers/error.handler";
 import { SuccessResponseHandler } from "./handlers/success.handler";
 import loggerMiddleware from "./middlewares/logger.middleware";
+import authRouter from "./routes/auth.routes";
+import communityRouter from "./routes/community.routes";
 import AppError from "./utils/AppError";
 import { createLogger } from "./utils/logger";
 
@@ -31,6 +33,8 @@ app.get("/health", (_request, response) => {
 });
 
 app.use("/api/docs", serve, setup(openApiSpec));
+app.use("/api/auth", authRouter);
+app.use("/api", communityRouter);
 
 app.use((_request, response) => {
 	ErrorResponseHandler(response, new AppError("Route not found", 404));
@@ -44,16 +48,18 @@ const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
 	}
 
 	// Errores 4xx de body-parser (JSON malformado, body grande, charset) y de decodificación de params.
+	if (error instanceof AppError) {
+		logger.warn("Request failed", { statusCode: error.statusCode });
+		ErrorResponseHandler(response, error);
+		return;
+	}
 	const status: unknown = error?.status;
 	if (typeof status === "number" && status >= 400 && status < 500) {
-		ErrorResponseHandler(response, new AppError(bodyErrorMessages[error.type] ?? error.message, status));
+		ErrorResponseHandler(response, new AppError(bodyErrorMessages[error.type] ?? "Invalid request", status));
 		return;
 	}
 
-	logger.error("Unhandled error", {
-		error: error instanceof Error ? error.message : String(error),
-		stack: error instanceof Error ? error.stack : undefined
-	});
+	logger.error("Unhandled request error");
 	ErrorResponseHandler(response, error);
 };
 

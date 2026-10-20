@@ -1,19 +1,21 @@
 import type { RequestHandler } from "express";
-import { ErrorResponseHandler } from "../handlers/error.handler";
 import type { Role } from "../types/express";
 import AppError from "../utils/AppError";
+import { catchAndLogError, createLogger } from "../utils/logger";
 
-export const authorize = (roles: Role[]): RequestHandler => (req, res, next) => {
+const logger = createLogger("RoleMiddleware");
+
+export const authorize = (roles: Role[]): RequestHandler => (_req, res, next) => {
 	try {
-		if (!req.user) {
+		logger.debug("Checking current database role");
+		if (!res.locals.authenticated || !res.locals.user) {
 			throw new AppError("Authentication required", 401);
 		}
-		if (!roles.includes(req.user.role)) {
+		if (!roles.includes(res.locals.user.role)) {
 			throw new AppError("Insufficient permissions", 403);
 		}
 	} catch (error) {
-		ErrorResponseHandler(res, error);
-		return;
+		return catchAndLogError(logger, error, "Unable to authorize request");
 	}
 
 	next();

@@ -11,6 +11,261 @@ servers:
 tags:
   - name: Health
 paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar usuario BASIC ACTIVE
+      description: Password de 8 caracteres mínimo y 72 bytes UTF-8 máximo. Usuario 3 a 32 caracteres. Campos desconocidos rechazados.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [username, email, password]
+              properties:
+                username: { type: string, minLength: 3, maxLength: 32 }
+                email: { type: string, format: email, maxLength: 254 }
+                password: { type: string, minLength: 8 }
+                timezone: { type: string, example: America/La_Paz }
+      responses:
+        '201': { $ref: '#/components/responses/AuthResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Autenticar credenciales de usuario ACTIVE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                password: { type: string, minLength: 8 }
+      responses:
+        '200': { $ref: '#/components/responses/AuthResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Identidad y rol vigentes desde PostgreSQL
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Usuario vigente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/SuccessEnvelope' }
+                  - properties: { data: { $ref: '#/components/schemas/User' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/comments:
+    get:
+      tags: [Community]
+      summary: Página plana de raíces, hijos directos o rama completa
+      description: Un selector exacto targetType+targetId, parentCommentId o rootCommentId. Destino publicado. Bearer opcional, si se envía debe ser válido. Sin expansión recursiva.
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - { name: targetType, in: query, schema: { type: string, enum: [WORK, CHAPTER] } }
+        - { name: targetId, in: query, schema: { type: string, format: uuid } }
+        - { name: parentCommentId, in: query, schema: { type: string, format: uuid } }
+        - { name: rootCommentId, in: query, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/CursorCreatedAt' }
+        - { $ref: '#/components/parameters/CursorId' }
+        - { $ref: '#/components/parameters/CursorLimit' }
+      responses:
+        '200': { $ref: '#/components/responses/CommentPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Community]
+      summary: Crear raíz o respuesta de cualquier profundidad
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  required: [targetType, targetId, bodyMarkdown]
+                  properties:
+                    targetType: { type: string, enum: [WORK, CHAPTER] }
+                    targetId: { type: string, format: uuid }
+                    bodyMarkdown: { type: string, minLength: 1, maxLength: 10000 }
+                - type: object
+                  additionalProperties: false
+                  required: [parentCommentId, bodyMarkdown]
+                  properties:
+                    parentCommentId: { type: string, format: uuid }
+                    bodyMarkdown: { type: string, minLength: 1, maxLength: 10000 }
+      responses:
+        '201': { $ref: '#/components/responses/CommentResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/comments/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Community]
+      summary: Editar comentario propio ACTIVE con revisión optimista
+      description: La revisión también aumenta con respuestas, votos y reportes. Markdown debe renderizarse con sanitización.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [bodyMarkdown, expectedRevision]
+              properties:
+                bodyMarkdown: { type: string, minLength: 1, maxLength: 10000 }
+                expectedRevision: { type: integer, minimum: 0 }
+      responses:
+        '200': { $ref: '#/components/responses/CommentResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Community]
+      summary: Borrado lógico por autor o ADMIN, también en destinos ocultos
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Marcador conservado con bodyMarkdown null y descendientes intactos }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/comments/{id}/vote:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [Community]
+      summary: Establecer o sustituir voto propio
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { type: integer, enum: [-1, 1] } }
+      responses:
+        '200':
+          description: Conteo actual agregado desde votos independientes
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/SuccessEnvelope' }
+                  - properties:
+                      data:
+                        allOf:
+                          - { $ref: '#/components/schemas/Votes' }
+                          - properties: { commentId: { type: string, format: uuid } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Community]
+      summary: Retirar voto, idempotente, admite comentario eliminado en destino publicado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Voto ausente }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/comments/{id}/reports:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Community]
+      summary: Reportar comentario ACTIVE, un reporte por usuario y comentario
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason: { type: string, enum: [SPAM, HARASSMENT, HATE, SPOILER, OTHER] }
+                details: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '201': { $ref: '#/components/responses/ReportResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/comment-reports:
+    get:
+      tags: [Community]
+      summary: ADMIN lista reportes privados incluso de destinos ocultos
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED] } }
+        - { $ref: '#/components/parameters/CursorCreatedAt' }
+        - { $ref: '#/components/parameters/CursorId' }
+        - { $ref: '#/components/parameters/CursorLimit' }
+      responses:
+        '200':
+          description: Página privada de moderación
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/SuccessEnvelope' }
+                  - properties:
+                      data:
+                        allOf:
+                          - { $ref: '#/components/schemas/CursorPage' }
+                          - properties: { items: { type: array, items: { $ref: '#/components/schemas/ModerationReport' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/comment-reports/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    patch:
+      tags: [Community]
+      summary: ADMIN cierra reporte OPEN o IN_REVIEW, sin borrar automáticamente contenido
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status, resolution]
+              properties:
+                status: { type: string, enum: [RESOLVED, DISMISSED] }
+                resolution: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '200':
+          description: Reporte privado resuelto
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/SuccessEnvelope' }
+                  - properties: { data: { $ref: '#/components/schemas/ModerationReport' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /health:
     get:
       tags: [Health]
@@ -44,6 +299,24 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CursorCreatedAt:
+      name: cursorCreatedAt
+      in: query
+      description: ISO UTC, junto con cursorId o ambos ausentes
+      schema: { type: string, format: date-time }
+    CursorId:
+      name: cursorId
+      in: query
+      schema: { type: string, format: uuid }
+    CursorLimit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
     Page:
       name: page
       in: query
@@ -62,6 +335,88 @@ components:
         maximum: 50
         default: 20
   schemas:
+    SuccessEnvelope:
+      type: object
+      required: [success, code, data]
+      properties:
+        success: { type: boolean, enum: [true] }
+        code: { type: integer }
+        data: {}
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, username, role, timezone, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        username: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        timezone: { type: string }
+        createdAt: { type: string, format: date-time }
+    Votes:
+      type: object
+      required: [upvotes, downvotes, score]
+      properties:
+        upvotes: { type: integer, minimum: 0 }
+        downvotes: { type: integer, minimum: 0 }
+        score: { type: integer }
+    Comment:
+      type: object
+      additionalProperties: false
+      required: [id, author, targetType, targetId, parentCommentId, rootCommentId, bodyMarkdown, status, revision, createdAt, editedAt, votes]
+      properties:
+        id: { type: string, format: uuid }
+        author:
+          type: object
+          nullable: true
+          required: [id, username]
+          properties:
+            id: { type: string, format: uuid }
+            username: { type: string }
+        targetType: { type: string, enum: [WORK, CHAPTER] }
+        targetId: { type: string, format: uuid }
+        parentCommentId: { type: string, format: uuid, nullable: true }
+        rootCommentId: { type: string, format: uuid }
+        bodyMarkdown: { type: string, nullable: true, maxLength: 10000 }
+        status: { type: string, enum: [ACTIVE, DELETED] }
+        revision: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        editedAt: { type: string, format: date-time, nullable: true }
+        votes: { $ref: '#/components/schemas/Votes' }
+    CursorPage:
+      type: object
+      required: [items, hasMore, nextCursor]
+      properties:
+        items: { type: array, items: {} }
+        hasMore: { type: boolean }
+        nextCursor:
+          type: object
+          nullable: true
+          required: [createdAt, id]
+          properties:
+            createdAt: { type: string, format: date-time }
+            id: { type: string, format: uuid }
+    Report:
+      type: object
+      required: [id, commentId, reason, details, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        commentId: { type: string, format: uuid }
+        reason: { type: string, enum: [SPAM, HARASSMENT, HATE, SPOILER, OTHER] }
+        details: { type: string, nullable: true }
+        status: { type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED] }
+        createdAt: { type: string, format: date-time }
+    ModerationReport:
+      allOf:
+        - { $ref: '#/components/schemas/Report' }
+        - type: object
+          required: [reporterId, reviewedById, reviewedAt, resolution, updatedAt]
+          properties:
+            reporterId: { type: string, format: uuid }
+            reviewedById: { type: string, format: uuid, nullable: true }
+            reviewedAt: { type: string, format: date-time, nullable: true }
+            resolution: { type: string, nullable: true }
+            updatedAt: { type: string, format: date-time }
     ErrorResponse:
       type: object
       required: [success, code, error]
@@ -95,7 +450,7 @@ components:
           maximum: 50
     Role:
       type: string
-      enum: [USER, ADMIN]
+      enum: [BASIC, EDITOR, ADMIN]
     WorkType:
       type: string
       enum: [MANHWA, MANHUA, MANGA, NOVELA]
@@ -106,6 +461,48 @@ components:
       type: string
       enum: [LEYENDO, POR_LEER, COMPLETADO, PAUSA]
   responses:
+    AuthResult:
+      description: Identidad pública y JWT HS256 válido siete días
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties:
+                  data:
+                    type: object
+                    required: [user, token]
+                    properties:
+                      user: { $ref: '#/components/schemas/User' }
+                      token: { type: string }
+    CommentResult:
+      description: Comentario público, sin metadatos privados
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/Comment' } }
+    CommentPage:
+      description: Página plana de comentarios, orden ascendente createdAt e id
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties:
+                  data:
+                    allOf:
+                      - { $ref: '#/components/schemas/CursorPage' }
+                      - properties: { items: { type: array, items: { $ref: '#/components/schemas/Comment' } } }
+    ReportResult:
+      description: Sólo el reporte recién creado por el actor
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/Report' } }
     BadRequest:
       description: Body, params o query inválidos, o JSON malformado
       content:

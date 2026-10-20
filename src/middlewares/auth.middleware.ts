@@ -1,39 +1,33 @@
 import type { RequestHandler } from "express";
-import { verify } from "jsonwebtoken";
-import config from "../config/env";
-import { ErrorResponseHandler } from "../handlers/error.handler";
-import type { AuthUser, Role } from "../types/express";
+import { authService, type AuthService } from "../services/auth/auth.service";
 import AppError from "../utils/AppError";
+import { catchAndLogError, createLogger } from "../utils/logger";
 
-const roles: Role[] = ["USER", "ADMIN"];
+const logger = createLogger("AuthMiddleware");
+type AuthenticationService = Pick<AuthService, "authenticateToken">;
 
-const verifyToken = (token: string): AuthUser => {
+export const createAuthenticate = (service: AuthenticationService = authService, optional = false): RequestHandler => async (req, res, next) => {
 	try {
-		const payload = verify(token, config.jwtSecret, { algorithms: ["HS256"] });
-
-		if (typeof payload === "object" && typeof payload.id === "string" && roles.includes(payload.role)) {
-			return { id: payload.id, role: payload.role };
+		logger.debug("Checking request identity");
+		delete req.user;
+		delete res.locals.user;
+		delete res.locals.authenticated;
+		if (optional && req.headers.authorization === undefined) {
+			next();
+			return;
 		}
-	} catch {
-		// Firma inválida, token expirado o alg no permitido: mismo 401 que un payload inválido.
-	}
-
-	throw new AppError("Invalid or expired token", 401);
-};
-
-export const authenticate: RequestHandler = (req, res, next) => {
-	try {
 		const match = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? "");
-
-		if (!match) {
-			throw new AppError("Authentication required", 401);
-		}
-
-		req.user = verifyToken(match[1]);
+		if (!match) throw new AppError("Authentication required", 401);
+		const user = await service.authenticateToken(match[1]);
+		res.locals.user = user;
+		res.locals.authenticated = true;
+		req.user = { id: user.id, role: user.role };
+		next();
 	} catch (error) {
-		ErrorResponseHandler(res, error);
-		return;
+		return catchAndLogError(logger, error, "Unable to authenticate request");
 	}
-
-	next();
 };
+
+export const createOptionalAuthenticate = (service: AuthenticationService = authService): RequestHandler => createAuthenticate(service, true);
+export const authenticate = createAuthenticate();
+export const optionalAuthenticate = createOptionalAuthenticate();
