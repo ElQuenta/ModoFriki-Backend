@@ -17,7 +17,7 @@ El contrato de biblioteca, visitas y actividad implementado se describe en «Bib
 - Respuesta OK: `{ "success": true, "code": 200, "data": <T> }`. Error: `{ "success": false, "code": 4xx, "error": { "message": "..." } }`.
 - Paginados futuros de catálogo: query `?page=1&limit=20` (`limit` máximo 50), `Paginated<T>`. Community usa `CursorPage<T>` y limit máximo 100, según contrato siguiente.
 - Auth: header `Authorization: Bearer <token>` (JWT de 7 días). Códigos: 401 sin token o token inválido, 403 sin rol, 404 no existe, 409 duplicado (email, username, slug).
-- CORS habilitado temporalmente para cualquier origen (`Access-Control-Allow-Origin: *`).
+- CORS restringido a `http://localhost:5173` y al origen de `FRONTEND_URL` (variable de entorno del backend en Render). Otros orígenes no reciben `Access-Control-Allow-Origin`.
 
 ## Formas de `data`
 ```ts
@@ -46,7 +46,7 @@ interface WorkDetail extends WorkSummary {
 }
 
 interface ChapterSummary { id: string; workId: string; number: number; title: string | null; views: number; createdAt: string }
-interface LatestChapter extends ChapterSummary { work: { id: string; slug: string; title: string; coverUrl: string } }
+interface LatestChapter extends ChapterSummary { work: { id: string; slug: string; title: string; coverUrl: string } }   // SUSTITUIDA: ver «Novedades y rankings (P1)»
 interface ChapterDetail extends ChapterSummary {
   pages: string[];                 // URLs de imágenes en orden
   prevId: string | null; nextId: string | null;
@@ -94,7 +94,7 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P1 | GET | /api/works | — | `search?, type?, status?, genre?` (slug), `tag?` (slug), `sort?=latest\|popular`, `page, limit` | `Paginated<WorkSummary>` |
 | P1 | GET | /api/works/:slug | — | — | `WorkDetail` |
 | P1 | GET | /api/works/:workId/chapters | — | — | `ChapterSummary[]` (por `number` descendente) |
-| P1 | GET | /api/chapters/latest | — | `limit?` (default 12) | `LatestChapter[]` |
+| P1 | GET | /api/chapters/latest | — | `limit?` (default 12) | ~~`LatestChapter[]`~~ → ver «Novedades y rankings (P1)» |
 | P1 | GET | /api/chapters/:id | — | — | `ChapterDetail` (suma 1 a `views`) |
 | P1 | GET | /api/favorites/me | user | `status?` | `Favorite[]` |
 | P1 | PUT | /api/favorites/:workId | user | `{ status, lastReadChapter? }` | `Favorite` (upsert) |
@@ -200,3 +200,42 @@ Despliegue: aplicar primero la migración aditiva de ChapterReadReceipt con el p
 Una clave de operación repetida no suma otra visita/lectura. Reutilizarla en otro destino o contexto de identidad devuelve 409. Para registrados, solo un evento por capítulo y día local contribuye a estadísticas y racha. Desmarcar no borra los eventos históricos; un reintento de un evento previo tampoco restaura un estado desmarcado. Favoritos y valoraciones son únicos por usuario/obra. Score cero es válido y sin valoraciones averageRating es null. Las métricas de 24 horas usan una ventana móvil UTC. Las lecturas anónimas son eventos aceptados, no personas únicas verificadas; la idempotencia no impide fabricar nuevas operaciones.
 
 Errores: 400 entrada/UUID/fecha/rango inválidos; 401 token ausente en rutas privadas o inválido en autenticación opcional; 404 destino no publicado/inexistente; 409 clave reutilizada en otro contexto o conflicto concurrente; 500 error interno seguro. No se expone identidad de lectores en estadísticas públicas.
+
+## Novedades y rankings (P1)
+
+Esta sección sustituye la fila `GET /api/chapters/latest` de la tabla de Endpoints. Rutas públicas bajo `/api`, con los envelopes existentes. `WorkRef` es el resumen de obra del módulo de lectura.
+
+```ts
+interface WorkRef { id: string; slug: string; title: string; coverUrl: string | null }
+interface LatestChapter {
+  id: string; workId: string; number: string;   // decimal serializado
+  title: string | null; kind: "NORMAL" | "EXTRA" | "ANNOUNCEMENT";
+  publishedAt: string; work: WorkRef;
+}
+```
+
+| P | Método | Ruta | Auth | Query | `data` |
+|---|---|---|---|---|---|
+| P1 | GET | /api/chapters/latest | — | `page?` (default 1, máximo 100000), `limit?` (default 12, máximo 50), `typeId?` (UUID de `/api/work-types`) | `Paginated<LatestChapter>` |
+
+Solo capítulos PUBLISHED y no eliminados de obras PUBLISHED y no eliminadas, ordenados por `publishedAt` descendente e `id`. `typeId` inexistente devuelve una página vacía. Errores: 400 query inválida (UUID, page/limit fuera de rango, claves desconocidas).
+
+```ts
+interface PopularWork { work: WorkRef; visits: number }
+```
+
+| P | Método | Ruta | Auth | Query | `data` |
+|---|---|---|---|---|---|
+| P1 | GET | /api/works/popular | — | `period?=all\|day` (default `all`), `page?` (default 1, máximo 100000), `limit?` (default 12, máximo 50), `typeId?` | `Paginated<PopularWork>` |
+
+`visits` cuenta los `POST /works/:workId/visits` aceptados: `all` desde siempre, `day` en las últimas 24 horas (ventana móvil UTC, igual que `visitsLast24Hours`). Incluye todas las obras PUBLISHED y no eliminadas, también con 0 visitas, ordenadas por `visits` descendente, `publishedAt` descendente e `id`. Errores: 400 query inválida.
+
+```ts
+interface RecommendedWorks { basis: "genres" | "popular"; items: PopularWork[] }
+```
+
+| P | Método | Ruta | Auth | Query | `data` |
+|---|---|---|---|---|---|
+| P1 | GET | /api/works/recommended | —, Bearer opcional validado | `limit?` (default 12, máximo 50) | `RecommendedWorks` |
+
+Con sesión se toman los géneros de las obras favoritas del usuario (el id sale del token; no se acepta `userId`). Se excluyen sus favoritos y se ordenan las obras PUBLISHED y no eliminadas por cantidad de géneros coincidentes descendente y después como `popular` con `period=all` (`visits` total, `publishedAt`, `id`). `basis` es `"genres"` si el usuario tiene al menos un favorito con géneros; si no, o sin sesión, `"popular"` y el orden es el de `popular`. Errores: 400 query inválida, 401 token inválido.

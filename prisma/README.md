@@ -63,3 +63,13 @@ No hay FK ni transacción entre PostgreSQL, MongoDB y Blob. La consulta pública
 No se entrega un rollback que borre tablas o eventos. Si falla la migración transaccional, comprobar su rollback y el estado que registró Prisma antes de un reintento; un estado de migración fallida requiere resolución revisada, nunca una marca automática. Si ya se confirmaron datos de dominio, preferir corrección hacia adelante; una restauración requiere el backup y la ventana de recuperación acordados. Una versión anterior de la aplicación puede ignorar tablas nuevas, conservando datos y `Example`.
 
 Validaciones locales pertinentes: format/validate/generate y build. La aceptación de motor requiere aplicar a una base PostgreSQL efímera, probar duplicados concurrentes, FK, puntuaciones inválidas, posiciones/números negativos, contexto anónimo inválido y deduplicación diaria; verificar que anónimos distintos sí cuentan y que renumerar conserva UUID. Si no se dispone de ese entorno, registrar esas pruebas como pendientes y no presentar el SQL generado como migración ejecutada.
+
+## `20261020000100_work_visits_count`
+
+Agrega `Work.visitsCount` (contador agregado para los rankings) y lo rellena desde `WorkVisitEvent`. Es aditiva. El backfill es una foto: si la versión anterior de la app sigue aceptando visitas mientras corre `migrate deploy`, esas visitas no suman al contador. Después de que arranque la versión nueva, volver a correr una vez el mismo `UPDATE` de la migración (es idempotente):
+
+```sql
+UPDATE "Work" w SET "visitsCount" = v.total
+FROM (SELECT "workId", COUNT(*)::int AS total FROM "WorkVisitEvent" GROUP BY "workId") v
+WHERE v."workId" = w."id";
+```

@@ -24,6 +24,9 @@ export class ReadingRepository implements ReadingRepositoryContract {
    const created = await tx.workVisitEvent.createMany({ data: [{ workId, idempotencyKey, occurredAt }], skipDuplicates: true });
    const event = await tx.workVisitEvent.findUniqueOrThrow({ where: { idempotencyKey } });
    if (event.workId !== workId) throw conflict();
+   // Same transaction as the event: a retried key never inserts, so it never increments.
+   // Raw SQL so @updatedAt (the edit/delete concurrency token) is not bumped by a visit.
+   if (created.count > 0) await tx.$executeRaw`UPDATE "Work" SET "visitsCount" = "visitsCount" + 1 WHERE "id" = ${workId}::uuid`;
    return { counted: created.count > 0, occurredAt: event.occurredAt };
   }));
  }
@@ -164,7 +167,7 @@ export class ReadingRepository implements ReadingRepositoryContract {
   return this.run("Unable to retrieve work statistics", () => this.client.$transaction(async tx => {
    await requireWork(tx, workId);
    const since = new Date(Date.now() - 86400000);
-   const visits = await tx.workVisitEvent.count({ where: { workId } });
+   const { visitsCount: visits } = await tx.work.findUniqueOrThrow({ where: { id: workId }, select: { visitsCount: true } });
    const visitsLast24Hours = await tx.workVisitEvent.count({ where: { workId, occurredAt: { gte: since } } });
    // Historical totals survive chapter unpublication/deletion; only the work is public.
    const chapter = { workId };

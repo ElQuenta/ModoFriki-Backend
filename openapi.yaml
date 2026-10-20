@@ -504,6 +504,147 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /api/chapters/latest:
+    get:
+      tags:
+        - Discovery
+      summary: Últimos capítulos publicados (Novedades)
+      description: >-
+        Capítulos PUBLISHED y no eliminados de obras PUBLISHED y no eliminadas,
+        ordenados por publishedAt descendente e id. Un typeId inexistente
+        devuelve una página vacía. Se rechazan claves de query desconocidas.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+        - name: typeId
+          in: query
+          required: false
+          description: UUID de /api/work-types
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LatestChapterPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/works/popular:
+    get:
+      tags:
+        - Discovery
+      summary: Obras más visitadas (Populares)
+      description: >-
+        Todas las obras PUBLISHED y no eliminadas, también con 0 visitas,
+        ordenadas por visits descendente, publishedAt descendente e id.
+        period=day cuenta las visitas de las últimas 24 horas. Un typeId
+        inexistente devuelve una página vacía. Se rechazan claves de query
+        desconocidas.
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, day]
+            default: all
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100000
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+        - name: typeId
+          in: query
+          required: false
+          description: UUID de /api/work-types
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PopularWorkPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/works/recommended:
+    get:
+      tags:
+        - Discovery
+      summary: Obras recomendadas por géneros de favoritos
+      description: >-
+        Pública con Bearer opcional; si se envía, debe ser válido. Con sesión
+        excluye los favoritos del usuario y ordena las obras PUBLISHED y no
+        eliminadas por géneros coincidentes descendente, luego como popular
+        (period=all). basis es genres si el usuario tiene al menos un favorito
+        con géneros; si no, o sin sesión, popular. El id sale del token; se
+        rechazan claves de query desconocidas (incluida userId).
+      security: [{}, { bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+      responses:
+        "200":
+          description: Operación completada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RecommendedWorks"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/auth/register:
     post:
       tags: [Auth]
@@ -2029,6 +2170,98 @@ components:
           nullable: true
           minimum: 0
           maximum: 5
+    WorkRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        coverUrl:
+          type: string
+          nullable: true
+    LatestChapter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workId:
+          type: string
+          format: uuid
+        number:
+          type: string
+          description: Decimal serializado
+        title:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum: [NORMAL, EXTRA, ANNOUNCEMENT]
+        publishedAt:
+          type: string
+          format: date-time
+        work:
+          $ref: "#/components/schemas/WorkRef"
+    LatestChapterPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LatestChapter"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+    PopularWork:
+      type: object
+      required: [work, visits]
+      properties:
+        work:
+          $ref: "#/components/schemas/WorkRef"
+        visits:
+          type: integer
+          minimum: 0
+    RecommendedWorks:
+      type: object
+      required: [basis, items]
+      properties:
+        basis:
+          type: string
+          enum: [genres, popular]
+        items:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/PopularWork"
+    PopularWorkPage:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PopularWork"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
     SuccessEnvelope:
       type: object
       required: [success, code, data]
