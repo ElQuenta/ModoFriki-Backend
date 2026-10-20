@@ -1,6 +1,3 @@
-import { isAbsolute, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { getCallSites } from "node:util";
 import { configure } from "safe-stable-stringify";
 import { createLogger as createWinstonLogger, format, transports, type Logger } from "winston";
 import config from "../config/env";
@@ -69,14 +66,19 @@ export const createLogger = (service: string): Logger => {
 export const catchAndLogError = (
 	logger: Logger,
 	error: unknown,
-	message: string
+	message: string,
+	options: { preserveOriginal?: boolean } = {}
 ): never => {
-  if (!(error instanceof AppError)) {
-    logger.error(message, {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-  }
+	// Original driver messages/stacks may contain SQL values or credentials.
+	// Log only a static description supplied by the calling layer.
+	if (error instanceof AppError) {
+		logger.log(error.statusCode >= 500 ? "error" : "warn", message, { statusCode: error.statusCode });
+	} else {
+		logger.error(message);
+	}
 
-  throw error instanceof AppError ? error : new AppError(message, 500);
+	// A transaction callback must preserve driver errors so withTransaction can retry.
+	// Its outer persistence boundary converts the final failure into an AppError.
+	if (options.preserveOriginal) throw error;
+	throw error instanceof AppError ? error : new AppError(message, 500);
 };
