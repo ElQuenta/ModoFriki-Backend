@@ -6,13 +6,23 @@ Desde la raíz, con las dependencias existentes instaladas:
 node --import tsx --test tests/community/*.test.ts
 ```
 
+La instrumentación de logger importa ahora la configuración de entorno. Antes del comando, establece variables ficticias para impedir que se utilicen las de la aplicación:
+
+```powershell
+$env:NODE_ENV = 'test'
+$env:DATABASE_URL = 'postgresql://test:test@127.0.0.1:1/test'
+$env:MONGODB_URI = 'mongodb://127.0.0.1:1/test'
+$env:JWT_SECRET = 'isolated-test-secret-with-at-least-32-characters'
+$env:LOG_LEVEL = 'error'
+```
+
 Comprobación estricta de tipos de los tests con TypeScript 7, sin cambiar el `tsconfig.json` de la aplicación:
 
 ```powershell
 node node_modules/typescript/bin/tsc --ignoreConfig --noEmit --strict --target ES2022 --module NodeNext --esModuleInterop --skipLibCheck --types node tests/community/fakes.ts tests/community/models.test.ts tests/community/repositories.test.ts
 ```
 
-Se usa el runner integrado `node:test` y `tsx` existente. No hay script npm de test, nuevas dependencias ni servicios requeridos. Las importaciones probadas no leen `.env`, no conectan a bases de datos ni suben archivos a Blob.
+Se usa el runner integrado `node:test` y `tsx` existente. No hay script npm de test, nuevas dependencias ni servicios requeridos. La configuración carga dotenv pero las variables ficticias anteriores tienen precedencia. Las pruebas no conectan a bases de datos ni suben archivos a Blob.
 
 | Área | Casos |
 | --- | --- |
@@ -29,6 +39,6 @@ Se usa el runner integrado `node:test` y `tsx` existente. No hay script npm de t
 
 La integración requiere un replica set MongoDB de prueba dedicado, índices creados y credenciales exclusivas. Debe verificar votos/reportes concurrentes, eliminación frente a interacciones, rollback e índices efectivos. No se ejecutó integración porque no hay ese servicio disponible; tampoco se leyó una URI del entorno de la aplicación ni se creó una prueba omitida que sugiera cobertura inexistente. La limpieza de una futura suite deberá limitarse a los UUID que esa ejecución haya creado, sin borrados generales.
 
-Services, Controllers, autorización HTTP y pipeline Multer/Blob quedan fuera de esta entrega y aún no están implementados para el dominio. El método de repositorio para moderación requiere que el futuro Service verifique ADMIN. Las comprobaciones de existencia/visibilidad en PostgreSQL tampoco están cubiertas por estos tests.
+Esta suite se limita a persistencia y documentos. La cobertura de Services, Controllers y autorización HTTP está en [tests/auth-community](../auth-community/README.md). Multer/Blob no intervienen en Auth/Community. Las comprobaciones de existencia/visibilidad SQL mediante dobles se prueban en esa suite; ninguna prueba conecta a PostgreSQL real.
 
 No se mide un porcentaje de cobertura. La validación Prisma, generación del cliente, compilación y revisión SQL se registran en el plan de la entrega; estos tests no verifican restricciones SQL mediante expresiones regulares ni aplican migraciones.
