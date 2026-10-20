@@ -1,4 +1,6 @@
-export type Role = "USER" | "ADMIN";
+import type { UserDto } from "./auth.types";
+
+export type Role = "BASIC" | "EDITOR" | "ADMIN";
 
 export interface AuthUser {
 	id: string;
@@ -9,6 +11,10 @@ declare global {
 	namespace Express {
 		interface Request {
 			user?: AuthUser;
+		}
+		interface Locals {
+			user?: UserDto;
+			authenticated?: boolean;
 		}
 	}
 }
