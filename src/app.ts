@@ -9,6 +9,7 @@ import { SuccessResponseHandler } from "./handlers/success.handler";
 import loggerMiddleware from "./middlewares/logger.middleware";
 import authRouter from "./routes/auth.routes";
 import communityRouter from "./routes/community.routes";
+import discoveryRouter from "./routes/discovery.routes";
 import catalogRouter from "./routes/catalog.routes";
 import readingRouter from "./routes/reading.routes";
 import AppError from "./utils/AppError";
@@ -34,6 +35,7 @@ app.get("/", (_request, response) => {
 app.use("/api/docs", serve, setup(openApiSpec));
 app.use("/api/auth", authRouter);
 app.use("/api", communityRouter);
+app.use("/api", discoveryRouter);
 app.use("/api", catalogRouter);
 app.use("/api", readingRouter);
 

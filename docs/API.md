@@ -46,7 +46,7 @@ interface WorkDetail extends WorkSummary {
 }
 
 interface ChapterSummary { id: string; workId: string; number: number; title: string | null; views: number; createdAt: string }
-interface LatestChapter extends ChapterSummary { work: { id: string; slug: string; title: string; coverUrl: string } }
+interface LatestChapter extends ChapterSummary { work: { id: string; slug: string; title: string; coverUrl: string } }   // SUSTITUIDA: ver «Novedades y rankings (P1)»
 interface ChapterDetail extends ChapterSummary {
   pages: string[];                 // URLs de imágenes en orden
   prevId: string | null; nextId: string | null;
@@ -94,7 +94,7 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P1 | GET | /api/works | — | `search?, type?, status?, genre?` (slug), `tag?` (slug), `sort?=latest\|popular`, `page, limit` | `Paginated<WorkSummary>` |
 | P1 | GET | /api/works/:slug | — | — | `WorkDetail` |
 | P1 | GET | /api/works/:workId/chapters | — | — | `ChapterSummary[]` (por `number` descendente) |
-| P1 | GET | /api/chapters/latest | — | `limit?` (default 12) | `LatestChapter[]` |
+| P1 | GET | /api/chapters/latest | — | `limit?` (default 12) | ~~`LatestChapter[]`~~ → ver «Novedades y rankings (P1)» |
 | P1 | GET | /api/chapters/:id | — | — | `ChapterDetail` (suma 1 a `views`) |
 | P1 | GET | /api/favorites/me | user | `status?` | `Favorite[]` |
 | P1 | PUT | /api/favorites/:workId | user | `{ status, lastReadChapter? }` | `Favorite` (upsert) |
@@ -200,3 +200,22 @@ Despliegue: aplicar primero la migración aditiva de ChapterReadReceipt con el p
 Una clave de operación repetida no suma otra visita/lectura. Reutilizarla en otro destino o contexto de identidad devuelve 409. Para registrados, solo un evento por capítulo y día local contribuye a estadísticas y racha. Desmarcar no borra los eventos históricos; un reintento de un evento previo tampoco restaura un estado desmarcado. Favoritos y valoraciones son únicos por usuario/obra. Score cero es válido y sin valoraciones averageRating es null. Las métricas de 24 horas usan una ventana móvil UTC. Las lecturas anónimas son eventos aceptados, no personas únicas verificadas; la idempotencia no impide fabricar nuevas operaciones.
 
 Errores: 400 entrada/UUID/fecha/rango inválidos; 401 token ausente en rutas privadas o inválido en autenticación opcional; 404 destino no publicado/inexistente; 409 clave reutilizada en otro contexto o conflicto concurrente; 500 error interno seguro. No se expone identidad de lectores en estadísticas públicas.
+
+## Novedades y rankings (P1)
+
+Esta sección sustituye la fila `GET /api/chapters/latest` de la tabla de Endpoints. Rutas públicas bajo `/api`, con los envelopes existentes. `WorkRef` es el resumen de obra del módulo de lectura.
+
+```ts
+interface WorkRef { id: string; slug: string; title: string; coverUrl: string | null }
+interface LatestChapter {
+  id: string; workId: string; number: string;   // decimal serializado
+  title: string | null; kind: "NORMAL" | "EXTRA" | "ANNOUNCEMENT";
+  publishedAt: string; work: WorkRef;
+}
+```
+
+| P | Método | Ruta | Auth | Query | `data` |
+|---|---|---|---|---|---|
+| P1 | GET | /api/chapters/latest | — | `page?` (default 1, máximo 100000), `limit?` (default 12, máximo 50), `typeId?` (UUID de `/api/work-types`) | `Paginated<LatestChapter>` |
+
+Solo capítulos PUBLISHED y no eliminados de obras PUBLISHED y no eliminadas, ordenados por `publishedAt` descendente e `id`. `typeId` inexistente devuelve una página vacía. Errores: 400 query inválida (UUID, page/limit fuera de rango, claves desconocidas).
