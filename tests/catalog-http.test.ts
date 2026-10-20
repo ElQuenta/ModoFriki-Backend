@@ -89,3 +89,15 @@ test("controller persistence failure invokes compensation and preserves conflict
     assert.equal(calls.at(-1)[1].workId, workId);
   });
 });
+
+test("application keeps health and Swagger available after catalog registration", async () => {
+  const { default: app } = await import("../src/app");
+  await withServer(app, async (base) => {
+    const health = await fetch(`${base}/health`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { success: true, code: 200, data: { status: "ok" } });
+    const docs = await fetch(`${base}/api/docs/`);
+    assert.equal(docs.status, 200);
+    assert.match(await docs.text(), /swagger-ui/);
+  });
+});
