@@ -4,6 +4,7 @@ import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import { serve, setup } from "swagger-ui-express";
 import { parse } from "yaml";
+import config from "./config/env";
 import { ErrorResponseHandler } from "./handlers/error.handler";
 import { SuccessResponseHandler } from "./handlers/success.handler";
 import loggerMiddleware from "./middlewares/logger.middleware";
@@ -16,6 +17,7 @@ import AppError from "./utils/AppError";
 import { createLogger } from "./utils/logger";
 
 const logger = createLogger("App");
+const allowedOrigins = ["http://localhost:5173", config.frontendUrl].filter((origin) => origin !== undefined);
 const openApiSpec = parse(readFileSync(resolve(__dirname, "..", "openapi.yaml"), "utf8"));
 const bodyErrorMessages: Record<string, string> = {
 	"entity.parse.failed": "Malformed JSON body",
@@ -25,10 +27,14 @@ const bodyErrorMessages: Record<string, string> = {
 const app = express();
 
 app.use(loggerMiddleware);
-app.use(cors());
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.get("/", (_request, response) => {
+	SuccessResponseHandler(response, { status: "ok" });
+});
+
+app.get("/health", (_request, response) => {
 	SuccessResponseHandler(response, { status: "ok" });
 });
 

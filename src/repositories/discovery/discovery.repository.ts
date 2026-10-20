@@ -34,15 +34,16 @@ export class DiscoveryRepository implements DiscoveryRepositoryContract {
 
 	async listPopularWorks({ period, page, limit, typeId }: PopularWorksQuery): Promise<Paginated<PopularWork>> {
 		return this.run("Unable to list popular works", async () => {
-			const since = period === "day" ? new Date(Date.now() - 86_400_000) : new Date(0);
 			const typeFilter = typeId ? Prisma.sql`AND w."typeId" = ${typeId}::uuid` : Prisma.empty;
+			// period=all reads the aggregated counter; day counts recent events via [workId, occurredAt].
+			const visits = period === "day"
+				? Prisma.sql`(SELECT COUNT(*) FROM "WorkVisitEvent" v WHERE v."workId" = w."id" AND v."occurredAt" >= ${new Date(Date.now() - 86_400_000)})`
+				: Prisma.sql`w."visitsCount"`;
 			const [rows, total] = await this.client.$transaction([
-				this.client.$queryRaw<{ id: string; visits: bigint }[]>`
-					SELECT w."id", COUNT(v."id") AS visits
+				this.client.$queryRaw<{ id: string; visits: bigint | number }[]>`
+					SELECT w."id", ${visits} AS visits
 					FROM "Work" w
-					LEFT JOIN "WorkVisitEvent" v ON v."workId" = w."id" AND v."occurredAt" >= ${since}
 					WHERE w."publicationStatus" = 'PUBLISHED' AND w."deletedAt" IS NULL ${typeFilter}
-					GROUP BY w."id"
 					ORDER BY visits DESC, w."publishedAt" DESC NULLS LAST, w."id" DESC
 					LIMIT ${limit} OFFSET ${(page - 1) * limit}`,
 				this.client.work.count({ where: { ...visibleWork, ...(typeId ? { typeId } : {}) } })
@@ -55,9 +56,8 @@ export class DiscoveryRepository implements DiscoveryRepositoryContract {
 		return this.run("Unable to list recommended works", async () => {
 			const uid = userId ?? null;
 			const [rows, withGenres] = await Promise.all([
-				this.client.$queryRaw<{ id: string; visits: bigint }[]>`
-					SELECT w."id",
-						(SELECT COUNT(*) FROM "WorkVisitEvent" v WHERE v."workId" = w."id") AS visits,
+				this.client.$queryRaw<{ id: string; visits: bigint | number }[]>`
+					SELECT w."id", w."visitsCount" AS visits,
 						(SELECT COUNT(*) FROM "WorkGenre" wg WHERE wg."workId" = w."id" AND wg."genreId" IN (
 							SELECT fg."genreId" FROM "Favorite" f JOIN "WorkGenre" fg ON fg."workId" = f."workId"
 							WHERE f."userId" = ${uid}::uuid)) AS matched
@@ -72,7 +72,7 @@ export class DiscoveryRepository implements DiscoveryRepositoryContract {
 		});
 	}
 
-	private async hydrate(rows: { id: string; visits: bigint }[]): Promise<PopularWork[]> {
+	private async hydrate(rows: { id: string; visits: bigint | number }[]): Promise<PopularWork[]> {
 		const works = await this.client.work.findMany({ where: { id: { in: rows.map(row => row.id) } }, select: summarySelect });
 		const byId = new Map(works.map(work => [work.id, workSummary(work)]));
 		return rows.flatMap(row => {
