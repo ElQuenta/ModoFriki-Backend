@@ -4,7 +4,7 @@ import type { ChapterKind, PublicationStatus, WorkReleaseStatus, UserRole } from
 export interface CatalogActor { id: string; role: UserRole }
 export interface AssetInput { id: string; url: string; pathname: string; contentType: string; size: number; fieldName?: string; position?: number }
 export type UploadedMedia = AssetInput[];
-export interface UploadContext { workId: string; chapterId?: string; workSlug: string; actorId: string; batchId?: string; expectedVersion?: number; expectedUpdatedAt?: Date; creating?: boolean }
+export interface UploadContext { workId: string; chapterId?: string; workSlug: string; actorId: string; batchId?: string; expectedVersion?: number; expectedUpdatedAt?: Date; creating?: boolean; replacedPageAssetIds?: string[] }
 export interface WorkInput { title: string; synopsis: string; typeId: string; publicationStatus?: PublicationStatus; releaseStatus?: WorkReleaseStatus; alternativeTitles?: string[]; genreIds?: string[] }
 export type WorkPatch = Partial<WorkInput>;
 export interface ChapterInput { number: string | number; title?: string | null; kind?: ChapterKind; status?: PublicationStatus }
@@ -38,14 +38,12 @@ export interface TaxonomyRepositoryContract {
  createGenre(name: string, slug: string, actor: CatalogActor): Promise<Genre>;
 }
 export interface BeginBatchInput { id?: string; actorId: string; workId?: string; chapterId?: string; expiresAt?: Date }
-export interface CleanupJob { id: string; assetId: string | null; pathname: string; attempts: number }
+export interface ReplacedChapterAsset { id: string; pathname: string }
 export interface MediaRepositoryContract {
  beginBatch(input: BeginBatchInput): Promise<{ id: string }>;
  planObject(batchId: string, pathname: string): Promise<{ id: string }>;
  markUploaded(batchId: string, pathname: string): Promise<void>;
  abandonBatch(batchId: string): Promise<void>;
- reconcileExpiredBatches(limit?: number): Promise<number>;
- claimCleanup(limit?: number): Promise<CleanupJob[]>;
- completeCleanup(id: string): Promise<void>;
- failCleanup(id: string, code: string): Promise<void>;
+ claimReplacedChapterAssets(chapterId: string, assetIds: string[]): Promise<ReplacedChapterAsset[]>;
+ markChapterAssetRemoved(assetId: string): Promise<void>;
 }

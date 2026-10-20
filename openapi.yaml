@@ -606,7 +606,7 @@ paths:
     delete:
       tags:
         - Catalog
-      summary: Retirar obra y cap?tulos; encolar limpieza
+      summary: Retirar obra y capitulos conservando archivos en Blob
       security:
         - bearerAuth: []
       requestBody:
@@ -899,7 +899,7 @@ paths:
     delete:
       tags:
         - Catalog
-      summary: Retirar cap?tulo y encolar limpieza
+      summary: Retirar capitulo conservando archivos en Blob
       security:
         - bearerAuth: []
       requestBody:

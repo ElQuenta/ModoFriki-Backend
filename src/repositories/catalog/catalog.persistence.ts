@@ -21,6 +21,8 @@ export async function canSeeDraft(tx: Pick<Transaction, "user" | "workEditorAssi
  return user?.role === "EDITOR" && !!workId && !!await tx.workEditorAssignment.findFirst({ where: { workId, editorId: actor.id, revokedAt: null } });
 }
 export async function guardPending(tx: Transaction, workId: string, batchId?: string) {
+ // Expiry releases the database lease only; stored files are never deleted by age.
+ await tx.uploadBatch.updateMany({ where: { status: "PENDING", expiresAt: { lte: new Date() }, OR: [{ workId }, { chapter: { workId } }] }, data: { status: "ABANDONED" } });
  const pending = await tx.uploadBatch.findFirst({ where: { status: "PENDING", OR: [{ workId }, { chapter: { workId } }], ...(batchId ? { id: { not: batchId } } : {}) } });
  if (pending) throw new AppError("Another upload is pending for this work", 409);
 }
@@ -38,14 +40,6 @@ export async function linkAssets(tx: Transaction, actorId: string, workId: strin
  }
  const committed = await tx.uploadBatch.updateMany({ where: { id: batchId, status: "PENDING", expiresAt: { gt: new Date() } }, data: { status: "COMMITTED" } });
  if (!committed.count) throw new AppError("Upload batch expired", 409);
-}
-export async function enqueueUnused(tx: Transaction, assetIds: string[]) {
- for (const id of [...new Set(assetIds)]) {
-  const asset = await tx.mediaAsset.findUnique({ where: { id }, include: { _count: { select: { workCovers: true, incapBanners: true, pages: true, siteSettings: true } } } });
-  if (!asset || Object.values(asset._count).some(count => count > 0)) continue;
-  await tx.mediaAsset.update({ where: { id }, data: { status: "DELETING" } });
-  if (!await tx.mediaCleanupJob.findFirst({ where: { assetId: id, status: { in: ["PENDING", "RUNNING", "FAILED"] } } })) await tx.mediaCleanupJob.create({ data: { assetId: id, pathname: asset.pathname } });
- }
 }
 export function persistenceError(error: unknown): unknown {
  if (typeof error === "object" && error !== null && "code" in error) {

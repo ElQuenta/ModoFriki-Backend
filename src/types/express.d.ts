@@ -21,6 +21,7 @@ declare global {
 			uploadedMedia?: UploadedMedia;
 			uploadContext?: UploadContext;
 			catalogPrepared?: CatalogPrepared;
+			catalogSaved?: { record: unknown; creating: boolean };
 			user?: UserDto;
 			authenticated?: boolean;
 		}

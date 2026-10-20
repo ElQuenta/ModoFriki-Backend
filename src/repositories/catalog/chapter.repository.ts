@@ -3,7 +3,7 @@ import type { PrismaClient } from "../../generated/prisma/client";
 import type { CatalogActor, CatalogListInput, ChapterInput, ChapterRepositoryContract, ChapterSaveInput } from "../../types/catalog.types";
 import AppError from "../../utils/AppError";
 import { catchAndLogError, createLogger } from "../../utils/logger";
-import { authorize, canSeeDraft, chapterInclude, enqueueUnused, guardPending, linkAssets, lockWork, persistenceError } from "./catalog.persistence";
+import { authorize, canSeeDraft, chapterInclude, guardPending, linkAssets, lockWork, persistenceError } from "./catalog.persistence";
 const logger = createLogger("ChapterRepository");
 export class ChapterRepository implements ChapterRepositoryContract {
  constructor(private readonly client: PrismaClient = prisma) {}
@@ -62,7 +62,6 @@ export class ChapterRepository implements ChapterRepositoryContract {
     await tx.chapterPage.createMany({ data: input.pages.map(page => ({ chapterId, assetId: page.id, position: page.position! })) });
    }
    await tx.chapter.update({ where: { id: chapterId }, data: { ...data, deletedAt: null, version: { increment: 1 }, updatedById: actor.id, ...(data.status === "PUBLISHED" && !current.publishedAt ? { publishedAt: new Date() } : {}) } });
-   if (input.pages) await enqueueUnused(tx, current.pages.map(page => page.assetId));
    return tx.chapter.findUniqueOrThrow({ where: { id: chapterId }, include: chapterInclude });
   }, { timeout: 30_000 }); } catch (error) { return catchAndLogError(logger, persistenceError(error), "Unable to save chapter"); }
  }
@@ -74,7 +73,6 @@ export class ChapterRepository implements ChapterRepositoryContract {
    if (current.version !== expectedVersion) throw new AppError("Chapter was modified; reload it", 409);
    await tx.chapterPage.deleteMany({ where: { chapterId: id } });
    await tx.chapter.update({ where: { id }, data: { deletedAt: new Date(), status: "DRAFT", version: { increment: 1 }, updatedById: actor.id } });
-   await enqueueUnused(tx, current.pages.map(page => page.assetId));
   }); } catch (error) { return catchAndLogError(logger, persistenceError(error), "Unable to remove chapter"); }
  }
  async abortReservation(id: string, actorId: string) {

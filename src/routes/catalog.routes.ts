@@ -5,7 +5,7 @@ import { createAuthenticate, createOptionalAuthenticate } from "../middlewares/a
 import { authService, type AuthService } from "../services/auth/auth.service";
 import { authorize } from "../middlewares/role.middleware";
 import { catalogBody, catalogParams, catalogPreflight, catalogUploadError } from "../middlewares/catalog.middleware";
-import { receiveChapterMedia, receiveWorkMedia, uploadMedia, validateImages } from "../middlewares/media";
+import { receiveChapterMedia, receiveWorkMedia, uploadMedia, validateImages, deleteReplacedChapterMedia } from "../middlewares/media";
 import * as schema from "../middlewares/schemas/catalog.schema";
 import { mediaRepository } from "../repositories/catalog/media.repository";
 import { catalogService, type CatalogService, type Mutation } from "../services/catalog/catalog.service";
@@ -15,6 +15,7 @@ export function createCatalogRouter(service: CatalogService = catalogService, au
 	const authenticate = createAuthenticate(auth);
 	const optionalAuthenticate = createOptionalAuthenticate(auth);
 	const controller = new CatalogController(service);
+	const respond = [deleteReplacedChapterMedia(mediaRepository), controller.respondSaved];
 	const pipeline = (mode: Mutation, body: Joi.Schema) => [
 		authenticate, catalogPreflight(service, mode === "createWork"),
 		mode === "createWork" || mode === "editWork" ? receiveWorkMedia() : receiveChapterMedia(),
@@ -26,24 +27,24 @@ export function createCatalogRouter(service: CatalogService = catalogService, au
 	];
 	router.route("/works")
 		.get(optionalAuthenticate, controller.listWorks)
-		.post(...pipeline("createWork", schema.createWorkSchema), controller.save(true));
+		.post(...pipeline("createWork", schema.createWorkSchema), controller.save(true), ...respond);
 	router.route("/works/:workId").all(catalogParams)
 		.get(optionalAuthenticate, controller.getWork)
-		.put(...pipeline("editWork", schema.editWorkSchema), controller.save())
-		.patch(...pipeline("editWork", schema.editWorkSchema), controller.save())
+		.put(...pipeline("editWork", schema.editWorkSchema), controller.save(), ...respond)
+		.patch(...pipeline("editWork", schema.editWorkSchema), controller.save(), ...respond)
 		.delete(authenticate, catalogPreflight(service), catalogBody(schema.deleteWorkSchema), controller.removeWork);
 	router.route("/works/:workId/chapters").all(catalogParams)
 		.get(optionalAuthenticate, controller.listChapters)
-		.post(...pipeline("createChapter", schema.createChapterSchema), controller.save(true));
+		.post(...pipeline("createChapter", schema.createChapterSchema), controller.save(true), ...respond);
 	router.route("/works/:workId/chapters/:chapterId").all(catalogParams)
 		.get(optionalAuthenticate, controller.getChapter)
-		.put(...pipeline("editChapter", schema.editChapterSchema), controller.save())
-		.patch(...pipeline("editChapter", schema.editChapterSchema), controller.save())
+		.put(...pipeline("editChapter", schema.editChapterSchema), controller.save(), ...respond)
+		.patch(...pipeline("editChapter", schema.editChapterSchema), controller.save(), ...respond)
 		.delete(authenticate, catalogPreflight(service), catalogBody(schema.deleteChapterSchema), controller.removeChapter);
 	router.route("/works/:workId/chapters/:chapterId/pages").all(catalogParams)
-		.put(...pipeline("replace", schema.deleteChapterSchema), controller.save())
-		.post(...pipeline("insert", schema.insertPagesSchema), controller.save())
-		.patch(...pipeline("reorder", schema.reorderPagesSchema), controller.save());
+		.put(...pipeline("replace", schema.deleteChapterSchema), controller.save(), ...respond)
+		.post(...pipeline("insert", schema.insertPagesSchema), controller.save(), ...respond)
+		.patch(...pipeline("reorder", schema.reorderPagesSchema), controller.save(), ...respond);
 	for (const [path, kind] of [["/work-types", "types"], ["/genres", "genres"]] as const) router.route(path)
 		.get(controller.listTaxonomy(kind)).post(authenticate, authorize(["ADMIN"]), catalogBody(schema.taxonomySchema), controller.createTaxonomy(kind));
 	return router;

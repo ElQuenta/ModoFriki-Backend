@@ -16,7 +16,7 @@ export const uploadMedia = ({ repository, plan, blob = blobOperations }: UploadM
 	const abandon = async () => {
 		if (!batchId || abandoned) return;
 		try { await repository.abandonBatch(batchId); abandoned = true; }
-		catch { logger.error("Unable to abandon upload batch; expiry reconciliation will retry"); }
+		catch { logger.error("Unable to mark upload batch abandoned; stored files are retained"); }
 	};
 	const disconnected = () => {
 		if (completed && res.writableFinished && res.statusCode < 400) return;

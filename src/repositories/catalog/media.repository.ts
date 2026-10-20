@@ -1,6 +1,6 @@
 import prisma from "../../config/database/postgres";
 import type { PrismaClient } from "../../generated/prisma/client";
-import type { BeginBatchInput, CleanupJob, MediaRepositoryContract } from "../../types/catalog.types";
+import type { BeginBatchInput, ReplacedChapterAsset, MediaRepositoryContract } from "../../types/catalog.types";
 import AppError from "../../utils/AppError";
 import { catchAndLogError, createLogger } from "../../utils/logger";
 import { authorize, guardPending, lockWork, persistenceError, type Transaction } from "./catalog.persistence";
@@ -13,16 +13,6 @@ async function batchWork(tx: Transaction, batchId: string) {
  if (!workId) throw new AppError("Upload batch has no destination", 409);
  await lockWork(tx, workId);
  return batch;
-}
-async function abandon(tx: Transaction, batchId: string) {
- await batchWork(tx, batchId);
- const changed = await tx.uploadBatch.updateMany({ where: { id: batchId, status: "PENDING" }, data: { status: "ABANDONED" } });
- if (!changed.count) return false;
- const objects = await tx.uploadObject.findMany({ where: { batchId, status: { in: ["PLANNED", "UPLOADED"] } } });
- // A request may have timed out while Blob is still accepting it. Wait beyond
- // the SDK's bounded upload timeout before deleting an ambiguously created path.
- for (const object of objects) await tx.mediaCleanupJob.create({ data: { pathname: object.pathname, assetId: object.assetId, nextAttemptAt: new Date(Date.now() + 15 * 60_000) } });
- return true;
 }
 
 export class MediaRepository implements MediaRepositoryContract {
@@ -39,7 +29,6 @@ export class MediaRepository implements MediaRepositoryContract {
    const user = await tx.user.findUnique({ where: { id: input.actorId, deletedAt: null, status: "ACTIVE" } });
    if (!user || !work) throw new AppError("Upload destination not found", 404);
    await authorize(tx, user, workId);
-   // A hidden reservation belongs only to its creator; deleted real resources cannot be resurrected by uploads.
    if (work.deletedAt && !(work.createdById === input.actorId && work.publicationStatus === "DRAFT" && !work.coverAssetId)) throw new AppError("Work not found", 404);
    if (chapter?.deletedAt && !(chapter.createdById === input.actorId && chapter.status === "DRAFT" && chapter.version === 1)) throw new AppError("Chapter not found", 404);
    await guardPending(tx, workId);
@@ -62,51 +51,31 @@ export class MediaRepository implements MediaRepositoryContract {
   }); } catch (error) { return catchAndLogError(logger, error, "Unable to record media upload"); }
  }
  async abandonBatch(batchId: string) {
-  try { await this.client.$transaction(tx => abandon(tx, batchId)); }
-  catch (error) { return catchAndLogError(logger, error, "Unable to abandon upload batch"); }
- }
- async reconcileExpiredBatches(limit = 50) {
-  try {
-   const batches = await this.client.uploadBatch.findMany({ where: { status: "PENDING", expiresAt: { lte: new Date() } }, select: { id: true }, take: Math.min(limit, 100), orderBy: { expiresAt: "asc" } });
-   let count = 0;
-   for (const batch of batches) if (await this.client.$transaction(async tx => {
-    await batchWork(tx, batch.id);
-    const current = await tx.uploadBatch.findUnique({ where: { id: batch.id } });
-    return current && current.expiresAt <= new Date() ? abandon(tx, batch.id) : false;
-   })) count++;
-   return count;
-  } catch (error) { return catchAndLogError(logger, error, "Unable to reconcile expired uploads"); }
- }
- async claimCleanup(limit = 20): Promise<CleanupJob[]> {
-  try { return await this.client.$transaction(async tx => {
-   const candidates = await tx.mediaCleanupJob.findMany({ where: { OR: [{ status: { in: ["PENDING", "FAILED"] }, nextAttemptAt: { lte: new Date() } }, { status: "RUNNING", updatedAt: { lt: new Date(Date.now() - 10 * 60 * 1000) } }] }, take: Math.min(limit, 100), orderBy: { createdAt: "asc" } });
-   const jobs: CleanupJob[] = [];
-   for (const job of candidates) {
-    const claimed = await tx.mediaCleanupJob.updateMany({ where: { id: job.id, status: job.status, updatedAt: job.updatedAt }, data: { status: "RUNNING", attempts: { increment: 1 } } });
-    if (!claimed.count) continue;
-    const asset = await tx.mediaAsset.findUnique({ where: { pathname: job.pathname }, include: { _count: { select: { workCovers: true, incapBanners: true, pages: true, siteSettings: true } } } });
-    // Cleanup never deletes an asset that has acquired a reference.
-    if (asset && Object.values(asset._count).some(count => count > 0)) {
-     await tx.mediaCleanupJob.update({ where: { id: job.id }, data: { status: "COMPLETED", lastErrorCode: "STILL_REFERENCED" } });
-     continue;
-    }
-    if (asset) await tx.mediaAsset.update({ where: { id: asset.id }, data: { status: "DELETING" } });
-    jobs.push({ id: job.id, assetId: job.assetId, pathname: job.pathname, attempts: job.attempts + 1 });
-   }
-   return jobs;
-  }); } catch (error) { return catchAndLogError(logger, error, "Unable to claim media cleanup"); }
- }
- async completeCleanup(id: string) {
   try { await this.client.$transaction(async tx => {
-   const job = await tx.mediaCleanupJob.findUnique({ where: { id } });
-   if (!job || job.status !== "RUNNING") return;
-   await tx.mediaCleanupJob.update({ where: { id }, data: { status: "COMPLETED", lastErrorCode: null } });
-   await tx.uploadObject.updateMany({ where: { pathname: job.pathname }, data: { status: "CLEANED" } });
-  }); } catch (error) { return catchAndLogError(logger, error, "Unable to complete media cleanup"); }
+   await batchWork(tx, batchId);
+   // Abandonment changes the journal only. All stored files are retained.
+   await tx.uploadBatch.updateMany({ where: { id: batchId, status: "PENDING" }, data: { status: "ABANDONED" } });
+  }); } catch (error) { return catchAndLogError(logger, error, "Unable to abandon upload batch"); }
  }
- async failCleanup(id: string, code: string) {
-  try { await this.client.mediaCleanupJob.updateMany({ where: { id, status: "RUNNING" }, data: { status: "FAILED", lastErrorCode: code.replace(/[^A-Z0-9_]/gi, "").slice(0, 80) || "BLOB_DELETE_FAILED", nextAttemptAt: new Date(Date.now() + 60_000) } }); }
-  catch (error) { return catchAndLogError(logger, error, "Unable to record cleanup failure"); }
+ async claimReplacedChapterAssets(chapterId: string, assetIds: string[]): Promise<ReplacedChapterAsset[]> {
+  try {
+   if (!assetIds.length) return [];
+   return await this.client.$transaction(async tx => {
+    // Only previous files from this chapter's committed batches, with no remaining references.
+    const where = {
+     id: { in: [...new Set(assetIds)] },
+     uploadObjects: { some: { batch: { chapterId, status: "COMMITTED" as const } } },
+     pages: { none: {} }, workCovers: { none: {} }, incapBanners: { none: {} }, siteSettings: { none: {} }
+    };
+    const assets = await tx.mediaAsset.findMany({ where, select: { id: true, pathname: true } });
+    if (assets.length) await tx.mediaAsset.updateMany({ where: { ...where, id: { in: assets.map(asset => asset.id) } }, data: { status: "DELETING" } });
+    return assets;
+   });
+  } catch (error) { return catchAndLogError(logger, error, "Unable to verify replaced chapter files"); }
+ }
+ async markChapterAssetRemoved(assetId: string): Promise<void> {
+  try { await this.client.uploadObject.updateMany({ where: { assetId, status: "LINKED" }, data: { status: "CLEANED" } }); }
+  catch (error) { return catchAndLogError(logger, error, "Unable to record replaced chapter file removal"); }
  }
 }
 export const mediaRepository = new MediaRepository();

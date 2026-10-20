@@ -1,5 +1,19 @@
 ﻿# Feature: Obras, capítulos y archivos multimedia
 
+## Cambio vigente: borrado exclusivamente por sustitución de páginas
+
+Por instrucción posterior del usuario se elimina `startMediaCleanup`, su servicio, la reconciliación periódica y la cola de borrado del código ejecutable. Las referencias a limpieza periódica/durable en el diseño y entrega históricos de abajo quedan sustituidas por esta política y por `docs/API.md`.
+
+- No borrar archivos Blob por vencimiento, abandono, fallo de subida, cambio de portada ni baja lógica.
+- Al confirmar una nueva generación de páginas de un capítulo (resubida, inserción o reordenamiento), un middleware posterior al commit borra exclusivamente los archivos de la generación anterior que ya no tengan referencias. No borra antes de persistir ni al editar solo datos.
+- Si falla el borrado, la nueva versión permanece confirmada, se registra el fallo sin detalles del proveedor y no hay reintento programado.
+- Los lotes vencidos liberan únicamente su reserva en PostgreSQL durante la siguiente mutación; sus objetos se conservan. El journal sigue impidiendo sobrescrituras y commits vencidos.
+- Se conserva la retirada de temporales locales de Multer al terminar cada petición.
+- No se modifica el esquema Prisma ni se ejecutan migraciones. Los modelos históricos de cleanup permanecen sin uso en runtime para evitar cambios destructivos de persistencia.
+- Pruebas específicas: ausencia de borrado por abandono/vencimiento, borrado posterior al commit, no borrado tras fallo o edición sin archivos, alcance por capítulo y fallo del proveedor sin reintentos.
+
+El resto del documento registra el diseño y la entrega originales.
+
 ## Objetivo
 
 Permitir crear, consultar, editar, publicar y retirar obras y capítulos. Gestionar portada e imagen inicial individuales y páginas múltiples mediante Multer y Vercel Blob, preservando orden, concurrencia y recuperación de fallos.

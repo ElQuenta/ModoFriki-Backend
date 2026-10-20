@@ -15,11 +15,17 @@ export class CatalogController {
 	getWork = this.handle(async (req, res) => { SuccessResponseHandler(res, catalogDto(await this.service.getWork(req.params.workId as string, res.locals.user))); });
 	listChapters = this.handle(async (req, res) => { SuccessResponseHandler(res, catalogDto(await this.service.listChapters(req.params.workId as string, req.query, res.locals.user))); });
 	getChapter = this.handle(async (req, res) => { SuccessResponseHandler(res, catalogDto(await this.service.getChapter(req.params.workId as string, req.params.chapterId as string, res.locals.user))); });
-	save = (creating = false): RequestHandler => this.handle(async (_req, res) => {
+	save = (creating = false): RequestHandler => this.handle(async (_req, res, next) => {
 		if (!res.locals.user || !res.locals.catalogPrepared) throw new AppError("Missing catalog upload context", 500);
 		let record: unknown;
 		try { record = await this.service.save(res.locals.catalogPrepared, res.locals.uploadedMedia ?? [], res.locals.user); }
 		catch (error) { try { await this.service.abort(res.locals.uploadContext); } catch { logger.error("Unable to compensate failed catalog save"); } throw error; }
+		res.locals.catalogSaved = { record, creating };
+		next();
+	});
+	respondSaved = this.handle((_req, res) => {
+		if (!res.locals.catalogSaved) throw new AppError("Missing saved catalog result", 500);
+		const { record, creating } = res.locals.catalogSaved;
 		if (creating) CreatedResponseHandler(res, catalogDto(record)); else SuccessResponseHandler(res, catalogDto(record));
 	});
 	removeWork = this.handle(async (req, res) => { await this.service.removeWork(req.params.workId as string, req.body, res.locals.user!); NoContentResponseHandler(res); });

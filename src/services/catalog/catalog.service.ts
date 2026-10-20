@@ -92,6 +92,7 @@ export class CatalogService {
 				}
 				context = { workId: work.id, chapterId: chapter.id, workSlug: work.slug, actorId: actor.id, expectedVersion: chapter.version, creating: mode === "createChapter" };
 				const originals = [...chapter.pages].sort((a, b) => a.position - b.position);
+				if (mode !== "createChapter" && (images.length > 0 || mode === "reorder")) context.replacedPageAssetIds = originals.map(page => page.assetId);
 				type Source = { fileIndex: number } | { page: ChapterRecord["pages"][number] };
 				let sources: Source[] = images.map((_file, fileIndex) => ({ fileIndex }));
 				if (mode === "insert") {

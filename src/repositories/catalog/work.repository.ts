@@ -3,7 +3,7 @@ import type { PrismaClient, Prisma } from "../../generated/prisma/client";
 import type { CatalogActor, CatalogListInput, WorkInput, WorkRepositoryContract, WorkSaveInput } from "../../types/catalog.types";
 import AppError from "../../utils/AppError";
 import { catchAndLogError, createLogger } from "../../utils/logger";
-import { authorize, canSeeDraft, enqueueUnused, guardPending, linkAssets, lockWork, persistenceError, workInclude } from "./catalog.persistence";
+import { authorize, canSeeDraft, guardPending, linkAssets, lockWork, persistenceError, workInclude } from "./catalog.persistence";
 const logger = createLogger("WorkRepository");
 
 export class WorkRepository implements WorkRepositoryContract {
@@ -55,7 +55,6 @@ export class WorkRepository implements WorkRepositoryContract {
    const { genreIds: _genres, alternativeTitles: _titles, ...fields } = data;
    // Always advance CAS even when the clock has not crossed a millisecond.
    await tx.work.update({ where: { id: workId }, data: { ...fields, updatedById: actor.id, updatedAt: new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1)), deletedAt: null, ...(cover ? { coverAssetId: cover.id } : {}), ...(banner ? { incapBannerAssetId: banner.id } : {}), ...(data.publicationStatus === "PUBLISHED" && !current.publishedAt ? { publishedAt: new Date() } : {}) } });
-   await enqueueUnused(tx, [cover && current.coverAssetId, banner && current.incapBannerAssetId].filter((id): id is string => !!id));
    return tx.work.findUniqueOrThrow({ where: { id: workId }, include: workInclude });
   }); } catch (error) { return catchAndLogError(logger, persistenceError(error), "Unable to save work"); }
  }
@@ -65,11 +64,9 @@ export class WorkRepository implements WorkRepositoryContract {
    const current = await tx.work.findUnique({ where: { id, deletedAt: null } });
    if (!current) throw new AppError("Work not found", 404);
    if (+current.updatedAt !== +expectedUpdatedAt) throw new AppError("Work was modified; reload it", 409);
-   const pages = await tx.chapterPage.findMany({ where: { chapter: { workId: id } }, select: { assetId: true } });
    await tx.chapterPage.deleteMany({ where: { chapter: { workId: id } } });
    await tx.chapter.updateMany({ where: { workId: id, deletedAt: null }, data: { deletedAt: new Date(), status: "DRAFT", updatedById: actor.id, version: { increment: 1 } } });
    await tx.work.update({ where: { id }, data: { deletedAt: new Date(), publicationStatus: "DRAFT", coverAssetId: null, incapBannerAssetId: null, updatedById: actor.id } });
-   await enqueueUnused(tx, [current.coverAssetId, current.incapBannerAssetId, ...pages.map(p => p.assetId)].filter((v): v is string => !!v));
   }); } catch (error) { return catchAndLogError(logger, persistenceError(error), "Unable to remove work"); }
  }
  async abortReservation(id: string, actorId: string) {
