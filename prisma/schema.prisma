@@ -110,12 +110,15 @@ model WorkEditorAssignment {
   assignedById String    @db.Uuid
   assignedAt   DateTime  @default(now()) @db.Timestamptz(3)
   revokedAt    DateTime? @db.Timestamptz(3)
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
   work         Work      @relation(fields: [workId], references: [id], onDelete: Restrict)
   editor       User      @relation("AssignedEditor", fields: [editorId], references: [id], onDelete: Restrict)
   assignedBy   User      @relation("AssignmentActor", fields: [assignedById], references: [id], onDelete: Restrict)
 
   @@unique([workId, editorId])
   @@index([editorId, revokedAt, workId])
+  @@index([editorId, createdAt, id])
 }
 
 model AdminAuditEvent {

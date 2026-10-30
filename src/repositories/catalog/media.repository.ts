@@ -3,16 +3,23 @@ import type { PrismaClient } from "../../generated/prisma/client";
 import type { BeginBatchInput, ReplacedChapterAsset, MediaRepositoryContract } from "../../types/catalog.types";
 import AppError from "../../utils/AppError";
 import { catchAndLogError, createLogger } from "../../utils/logger";
+import { lockUsers, readSqlTime } from "../user-locks";
 import { authorize, guardPending, lockWork, persistenceError, type Transaction } from "./catalog.persistence";
 const logger = createLogger("MediaRepository");
 
-async function batchWork(tx: Transaction, batchId: string) {
- const batch = await tx.uploadBatch.findUnique({ where: { id: batchId }, include: { chapter: { select: { workId: true } } } });
- if (!batch) throw new AppError("Upload batch not found", 404);
- const workId = batch.workId ?? batch.chapter?.workId;
+async function batchWork(tx: Transaction, batchId: string, requirePermission = true) {
+ const destination = await tx.uploadBatch.findUnique({ where: { id: batchId }, include: { chapter: { select: { workId: true } } } });
+ if (!destination) throw new AppError("Upload batch not found", 404);
+ const workId = destination.workId ?? destination.chapter?.workId;
  if (!workId) throw new AppError("Upload batch has no destination", 409);
+ await lockUsers(tx, [destination.requestedById]);
  await lockWork(tx, workId);
- return batch;
+ const batch = await tx.uploadBatch.findUnique({ where: { id: batchId }, include: { chapter: { select: { workId: true } } } });
+ const currentWorkId = batch?.workId ?? batch?.chapter?.workId;
+ if (!batch) throw new AppError("Upload batch not found", 404);
+ if (batch.requestedById !== destination.requestedById || currentWorkId !== workId) throw new AppError("Upload destination changed; retry the operation", 409);
+ if (requirePermission) await authorize(tx, { id: batch.requestedById }, workId);
+ return { batch, workId, now: await readSqlTime(tx) };
 }
 
 export class MediaRepository implements MediaRepositoryContract {
@@ -23,6 +30,7 @@ export class MediaRepository implements MediaRepositoryContract {
    let chapter = input.chapterId ? await tx.chapter.findUnique({ where: { id: input.chapterId } }) : null;
    const workId = input.workId ?? chapter?.workId;
    if (!workId) throw new AppError("Upload destination not found", 404);
+   await lockUsers(tx, [input.actorId]);
    await lockWork(tx, workId);
    if (input.chapterId) chapter = await tx.chapter.findUnique({ where: { id: input.chapterId } });
    const work = await tx.work.findUnique({ where: { id: workId } });
@@ -37,22 +45,21 @@ export class MediaRepository implements MediaRepositoryContract {
  }
  async planObject(batchId: string, pathname: string) {
   try { return await this.client.$transaction(async tx => {
-   await batchWork(tx, batchId);
-   const batch = await tx.uploadBatch.findUnique({ where: { id: batchId } });
-   if (!batch || batch.status !== "PENDING" || batch.expiresAt <= new Date()) throw new AppError("Upload batch is unavailable", 409);
+   const { batch, now } = await batchWork(tx, batchId);
+   if (batch.status !== "PENDING" || batch.expiresAt <= now) throw new AppError("Upload batch is unavailable", 409);
    return tx.uploadObject.create({ data: { batchId, pathname }, select: { id: true } });
   }); } catch (error) { return catchAndLogError(logger, persistenceError(error), "Unable to plan media upload"); }
  }
  async markUploaded(batchId: string, pathname: string) {
   try { await this.client.$transaction(async tx => {
-   await batchWork(tx, batchId);
-   const changed = await tx.uploadObject.updateMany({ where: { batchId, pathname, status: "PLANNED", batch: { status: "PENDING", expiresAt: { gt: new Date() } } }, data: { status: "UPLOADED" } });
+   const { now } = await batchWork(tx, batchId);
+   const changed = await tx.uploadObject.updateMany({ where: { batchId, pathname, status: "PLANNED", batch: { status: "PENDING", expiresAt: { gt: now } } }, data: { status: "UPLOADED" } });
    if (!changed.count) throw new AppError("Upload batch is unavailable", 409);
   }); } catch (error) { return catchAndLogError(logger, error, "Unable to record media upload"); }
  }
  async abandonBatch(batchId: string) {
   try { await this.client.$transaction(async tx => {
-   await batchWork(tx, batchId);
+   await batchWork(tx, batchId, false);
    // Abandonment changes the journal only. All stored files are retained.
    await tx.uploadBatch.updateMany({ where: { id: batchId, status: "PENDING" }, data: { status: "ABANDONED" } });
   }); } catch (error) { return catchAndLogError(logger, error, "Unable to abandon upload batch"); }

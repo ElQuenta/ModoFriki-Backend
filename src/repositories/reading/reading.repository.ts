@@ -37,8 +37,8 @@ export class ReadingRepository implements ReadingRepositoryContract {
    // Select an integer because PostgreSQL's advisory-lock return type is void.
    const lockKey = `chapter-read:${idempotencyKey.toLowerCase()}`;
    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
-   await requireChapter(tx, chapterId);
    const user = actor ? await requireActor(tx, actor) : null;
+   await requireChapter(tx, chapterId);
    const receipt = await tx.chapterReadReceipt.findUnique({ where: { idempotencyKey }, include: { event: true } });
    // Original event keys predate receipts and remain authoritative for legacy retries.
    const original = await tx.chapterReadEvent.findUnique({ where: { idempotencyKey } });
@@ -64,8 +64,8 @@ export class ReadingRepository implements ReadingRepositoryContract {
 
  async setReadState(chapterId: string, isRead: boolean, actor: ReadingActor) {
   return this.run("Unable to update chapter read state", () => this.client.$transaction(async tx => {
-   if (isRead) await requireChapter(tx, chapterId);
    await requireActor(tx, actor);
+   if (isRead) await requireChapter(tx, chapterId);
    const where = { userId_chapterId: { userId: actor.id, chapterId } };
    if (!isRead) {
     const existing = await tx.userChapterRead.findUnique({ where, select: stateSelect });
@@ -79,8 +79,8 @@ export class ReadingRepository implements ReadingRepositoryContract {
 
  async setFavorite(workId: string, enabled: boolean, actor: ReadingActor) {
   return this.run("Unable to update favorite", () => this.client.$transaction(async tx => {
-   if (enabled) await requireWork(tx, workId, true);
    await requireActor(tx, actor);
+   if (enabled) await requireWork(tx, workId, true);
    if (enabled) await tx.favorite.upsert({ where: { userId_workId: { userId: actor.id, workId } }, create: { userId: actor.id, workId }, update: {} });
    else await tx.favorite.deleteMany({ where: { userId: actor.id, workId } });
    return { workId, isFavorite: enabled };
@@ -90,8 +90,8 @@ export class ReadingRepository implements ReadingRepositoryContract {
  async setRating(workId: string, scoreHalfStars: number | null, actor: ReadingActor) {
   if (scoreHalfStars !== null && (!Number.isInteger(scoreHalfStars) || scoreHalfStars < 0 || scoreHalfStars > 10)) throw new AppError("Invalid rating", 400);
   return this.run("Unable to update work rating", () => this.client.$transaction(async tx => {
-   if (scoreHalfStars !== null) await requireWork(tx, workId, true);
    await requireActor(tx, actor);
+   if (scoreHalfStars !== null) await requireWork(tx, workId, true);
    if (scoreHalfStars === null) await tx.workRating.deleteMany({ where: { userId: actor.id, workId } });
    else await tx.workRating.upsert({ where: { userId_workId: { userId: actor.id, workId } }, create: { userId: actor.id, workId, scoreHalfStars }, update: { scoreHalfStars } });
    return { workId, scoreHalfStars };

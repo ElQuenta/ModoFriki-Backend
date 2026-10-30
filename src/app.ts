@@ -11,7 +11,9 @@ import { isMongoUp } from "./config/database/mongodb";
 import { ErrorResponseHandler } from "./handlers/error.handler";
 import { SuccessResponseHandler } from "./handlers/success.handler";
 import loggerMiddleware from "./middlewares/logger.middleware";
+import adminRouter from "./routes/admin.routes";
 import { apiRateLimit, authRateLimit } from "./middlewares/rate-limit.middleware";
+
 import authRouter from "./routes/auth.routes";
 import communityRouter from "./routes/community.routes";
 import discoveryRouter from "./routes/discovery.routes";
@@ -52,6 +54,7 @@ app.use("/api/docs", serve, setup(openApiSpec));
 app.use("/api", apiRateLimit);
 app.use(["/api/auth/login", "/api/auth/register"], authRateLimit);
 app.use("/api/auth", authRouter);
+app.use("/api", adminRouter);
 app.use("/api", communityRouter);
 app.use("/api", discoveryRouter);
 app.use("/api", catalogRouter);
