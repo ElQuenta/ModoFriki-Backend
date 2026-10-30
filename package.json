@@ -14,7 +14,11 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "prisma db seed",
     "prisma:studio": "prisma studio",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:env:up": "node postman/test-env.mjs up",
+    "test:env:server": "node postman/test-env.mjs server",
+    "test:env:down": "node postman/test-env.mjs down",
+    "test:api": "newman run postman/ModoFriki-API.postman_collection.json -e postman/local.postman_environment.json --reporters cli,json --reporter-json-export postman/reports/last-run.json"
   },
   "repository": {
     "type": "git",
@@ -50,6 +54,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.5",
     "@types/swagger-ui-express": "^4.1.8",
+    "newman": "^6.2.3",
     "nodemon": "^3.1.14",
     "prisma": "^7.10.1",
     "tsx": "^4.19.3",

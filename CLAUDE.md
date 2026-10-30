@@ -46,6 +46,7 @@ De `AGENTS.md` aplica todo: arquitectura, persistencia, pipeline multimedia, Git
 | `media` | `src/middlewares/media/**`, `src/utils/media-paths.ts` | Si la feature sube archivos |
 | `dev` | `src/routes/**`, `src/controllers/**`, `src/services/**`, `src/middlewares/schemas/**`, `src/middlewares/{auth,role,catalog,validatebody,validateParams,validateQuery}.middleware.ts`, `src/types/express.d.ts`, `src/app.ts`, `openapi.yaml`, `package.json` | Siempre, después de `db` y `media` |
 | `test` | Nada (prueba con curl) | Después de implementar |
+| `tester-api` | Nada (colección Postman con newman + MCP `postman`) | En `/probar-backend` y `/corregir-backend` |
 | (principal) | `**/__tests__/**`, `vitest.config.ts`, `docs/**`, `CLAUDE.md` | Unit tests y documentación |
 | `reviewer` | Nada (revisa) | Antes de cada commit |
 | `security` | Nada (audita) | En paralelo con `reviewer` si la feature toca auth, permisos, uploads o secretos |
@@ -57,6 +58,13 @@ Dependencias: cualquier rol puede instalar los `@types/*` que necesiten sus arch
 ## Skill
 `/modofriki-feature <feature>` es el flujo completo de `docs/agents/WORKFLOW.md` adaptado a Claude.
 MVP terminado (dominios `auth`, `catalog`, `community`, `reading`, `discovery`). Cada feature nueva pasa por el skill con su propia rama.
+
+## Pruebas de API (`postman/README.md`)
+- `/probar-backend [carpeta]`: entorno desechable en Docker (`npm run test:env:up` + `test:env:server`), colección `postman/ModoFriki-API.postman_collection.json` con newman (`npm run test:api`) y reporte clasificado de `tester-api`. Solo lee.
+- `/corregir-backend [carpeta]`: prueba, corrige bugs delegando en el rol dueño, re-prueba (máx. 2 rondas), `npm test` + build + `reviewer`. No hace commit.
+- MCP `postman` (`.mcp.json`): usa la `POSTMAN_API_KEY` personal de cada uno (variable de entorno del sistema, nunca en el repo) solo para sincronizar la colección con Postman. Ejecuta newman, porque Postman en la nube no llega a `localhost`.
+- Nunca correr la colección contra Render: la guardia es `GET /api/works/66666666-6666-4666-8666-666666666666` → 200 (fixture que solo existe en la DB de pruebas).
+- Si cambias un endpoint, actualiza su request en la colección en el mismo PR.
 
 ## Hooks (`.claude/settings.json`)
 - **PreToolUse en Edit/Write:** bloquea `.env*` (excepto `.env.example`) y `src/generated/**`.

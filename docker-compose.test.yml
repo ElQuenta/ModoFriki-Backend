@@ -1,0 +1,33 @@
+# Entorno desechable para pruebas de API y E2E (no toca la DB compartida de Render).
+# Uso: ver postman/README.md
+name: modofriki-test
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: modofriki-test-pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: modofriki
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d modofriki"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mongo:
+    image: mongo:7
+    container_name: modofriki-test-mongo
+    # Community usa transacciones: Mongo necesita replica set.
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27027:27017"
+    healthcheck:
+      # Inicia el replica set la primera vez y luego solo comprueba su estado.
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
