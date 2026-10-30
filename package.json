@@ -19,7 +19,8 @@
     "test:env:up": "node postman/test-env.mjs up",
     "test:env:server": "node postman/test-env.mjs server",
     "test:env:down": "node postman/test-env.mjs down",
-    "test:api": "newman run postman/ModoFriki-API.postman_collection.json -e postman/local.postman_environment.json --reporters cli,json --reporter-json-export postman/reports/last-run.json"
+    "test:api": "newman run postman/ModoFriki-API.postman_collection.json -e postman/local.postman_environment.json --reporters cli,json --reporter-json-export postman/reports/last-run.json",
+    "media:cleanup": "tsx src/scripts/media-cleanup.ts"
   },
   "repository": {
     "type": "git",
