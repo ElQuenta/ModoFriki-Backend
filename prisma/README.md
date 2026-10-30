@@ -14,12 +14,18 @@ Todas las PK y FK nuevas son UUID nativas; `uuid()` genera el valor desde Prisma
 
 Los instantes nuevos usan `TIMESTAMPTZ(3)`; la fecha de calendario usa `DATE`. `Chapter.number` es `NUMERIC(12,3)`: la capa de entrada futura debe rechazar más de tres decimales antes de persistir, porque PostgreSQL puede redondear. Intercambiar ese valor como string. `sizeBytes` es `BIGINT`, por lo que una futura respuesta JSON debe convertirlo explícitamente.
 
-## Migraciones preparadas, no aplicadas
+## Migraciones versionadas
 
-Los archivos se generaron **offline**, con `prisma migrate diff` entre esquemas locales, sin consultar ni modificar las bases configuradas:
+Las migraciones son aditivas y se revisan como SQL versionado. Están preparadas
+para aplicarse únicamente mediante el procedimiento aprobado y se validaron en
+una base PostgreSQL desechable; no se aplicaron a una base compartida:
 
-1. `20261019000000_existing_example`: baseline que crea solamente la estructura original de `Example` en una base vacía.
-2. `20261019000100_core_domain`: incorporación aditiva del dominio, índices, FK, CHECK y unicidad diaria de lecturas registradas. No crea comunidad SQL ni copia documentos MongoDB. Incluye transacción SQL explícita.
+1. `20261019000100_core_domain`: dominio, índices, FK y restricciones base.
+2. `20261019000200_chapter_read_receipts`: recibos de lectura idempotentes.
+3. `20261020000100_work_visits_count`: contador agregado de visitas.
+4. `20261029000100_admin_assignments`: administración de roles y asignaciones.
+5. `20261029000200_comment_sanctions_decisions`: sanciones y decisiones durables de creación de comentarios.
+6. `20261029000300_work_detail_banner`: banner de ficha y exención histórica de imágenes.
 
 No se ejecutaron `migrate dev`, `migrate deploy`, `migrate resolve`, `db push`, reset ni operaciones contra datos existentes. Un push de Git publica los archivos, no aplica estas migraciones.
 
@@ -27,8 +33,8 @@ No se ejecutaron `migrate dev`, `migrate deploy`, `migrate resolve`, `db push`, 
 
 Un responsable debe identificar y verificar la base de destino, revisar tablas, secuencias, restricciones e historial `_prisma_migrations`, comparar drift y tomar un backup restaurable. Los archivos locales no prueban el estado real de una base. Probar primero en una base efímera y verificar restauración antes de preparar el despliegue. No ejecutar comandos de esta sección automáticamente desde esta entrega.
 
-- **Base realmente vacía y sin historial:** después de revisión, aplicar ambas migraciones mediante el procedimiento de despliegue aprobado. No marcar el baseline como aplicado: todavía necesita crear `Example`.
-- **Base con `Example` existente y sin historial:** comprobar que su estructura, PK, secuencia, default y tipo de fecha coinciden con el baseline, preservando filas y siguiente valor de la secuencia. Solo después de esa comprobación un responsable puede marcar explícitamente `20261019000000_existing_example` como aplicado mediante `prisma migrate resolve --applied 20261019000000_existing_example`, y luego preparar la migración de dominio. Este comando cambia el historial; **no se ejecutó ni se autoriza automáticamente**. No ejecutar el SQL de creación del baseline sobre esa tabla existente.
+- **Base realmente vacía y sin historial:** después de revisión, aplicar todas las migraciones mediante el procedimiento de despliegue aprobado.
+- **Base existente sin historial completo:** detener el proceso y diseñar una reconciliación específica. No usar `migrate resolve` para ocultar diferencias ni ejecutar SQL de baseline sin inspección.
 - **Base con migraciones previas, tablas adicionales o drift:** detener la aplicación y diseñar una reconciliación específica. No marcar migraciones como aplicadas para ocultar diferencias, no usar reset ni `db push` para forzar coincidencia. Si ya hay datos de dominio, revisar duplicados y compatibilidad antes de crear únicos.
 
 ## Restricciones y consultas

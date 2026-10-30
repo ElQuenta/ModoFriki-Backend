@@ -168,6 +168,14 @@
 - [ ] T066 Consolidar criterios SC-001–009, trazabilidad FR-001–022, resultados/límites, destinos identificados sin secretos, ramas y SHA reales si se hicieron commits en `specs/001-admin-community-media/validation/delivery.md`; especificar que ninguna aprobación de requisitos certifica implementación y ningún mock prueba proveedor real. Responsable: coordinador. Dependencias: T065.
 - [ ] T067 Preparar propuesta revisable en `specs/001-admin-community-media/validation/qa-proposal.md` con corte/recuperación y evidencias T061–T066; comprobar en `specs/001-admin-community-media/validation/frontend-contract.md` versión/SHA, resultados de los cuatro escenarios y aceptación explícita del responsable del consumidor. Si falta evidencia o aprobación, dejar este gate pendiente sin proponer habilitación del despliegue; una aprobación de QA no sustituye al consumidor. Con evidencias completas solicitar aprobación humana final antes de integrar a QA; sin merge/push-forzado/reset ni despliegue automático. Responsable: coordinador. Dependencias: T066.
 
+### Registro de ejecución fase 7
+
+- [X] T060 — Documentación de API, OpenAPI, Prisma y quickstart sincronizada con migraciones y contratos actuales.
+- [X] T061 — Checks obligatorios ejecutados: 494 pruebas unitarias y 53 de integración en destinos desechables; resultados en `validation/final-checks.md`.
+- [ ] T062 — Ensayo desde cero ejecutado; faltan corte de instancias antiguas, backup/restauración y rollback operacional. Ver `validation/deployment-rehearsal.md`.
+- [ ] T063–T064 — Revisión independiente y de seguridad pendiente: los agentes no iniciaron por límite temporal del entorno. Ver `validation/review.md` y `validation/security-review.md`.
+- [ ] T065–T067 — Dependientes de revisiones externas, ensayo operacional y aceptación explícita del consumidor; propuesta QA queda PENDIENTE.
+
 ## Dependencies & Execution Order
 
 ### Dependencias de fases
