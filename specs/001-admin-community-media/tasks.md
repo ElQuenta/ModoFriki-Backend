@@ -172,7 +172,7 @@
 
 - [X] T060 — Documentación de API, OpenAPI, Prisma y quickstart sincronizada con migraciones y contratos actuales.
 - [X] T061 — Checks obligatorios ejecutados: 494 pruebas unitarias y 53 de integración en destinos desechables; resultados en `validation/final-checks.md`.
-- [ ] T062 — Ensayo desde cero ejecutado; faltan corte de instancias antiguas, backup/restauración y rollback operacional. Ver `validation/deployment-rehearsal.md`.
+- [ ] T062 — Ensayo temporal desde cero y corte compatible de lector anterior ejecutados; faltan recuperación por fallo, backup/restauración y rollback operacional. Ver `validation/deployment-rehearsal.md`.
 - [ ] T063–T064 — Revisión independiente y de seguridad pendiente: los agentes no iniciaron por límite temporal del entorno. Ver `validation/review.md` y `validation/security-review.md`.
 - [ ] T065–T067 — Dependientes de revisiones externas, ensayo operacional y aceptación explícita del consumidor; propuesta QA queda PENDIENTE.
 
