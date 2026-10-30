@@ -42,11 +42,14 @@ const actions = {
 	},
 	// Base propia en el mismo Postgres: los tests de integración crean obras y capítulos que, en la base
 	// "modofriki", desplazarían los fixtures que esperan la colección Postman y el E2E.
+	// El nombre cumple la guardia de test-support/integration-environment.ts (mf_admin_test_<id>).
 	integration() {
-		const exists = spawnSync("docker", ["exec", "modofriki-test-pg", "psql", "-U", "postgres", "-tAc", "SELECT 1 FROM pg_database WHERE datname = 'modofriki_integration'"], { encoding: "utf8" });
+		const name = "mf_admin_test_integration";
+		const exists = spawnSync("docker", ["exec", "modofriki-test-pg", "psql", "-U", "postgres", "-tAc", `SELECT 1 FROM pg_database WHERE datname = '${name}'`], { encoding: "utf8" });
 		if (exists.status !== 0) process.exit(exists.status ?? 1);
-		if (exists.stdout.trim() !== "1") run("docker", ["exec", "modofriki-test-pg", "createdb", "-U", "postgres", "modofriki_integration"]);
-		const integrationEnv = { ...env, DATABASE_URL: TEST_ENV.DATABASE_URL.replace("/modofriki?", "/modofriki_integration?") };
+		if (exists.stdout.trim() !== "1") run("docker", ["exec", "modofriki-test-pg", "createdb", "-U", "postgres", name]);
+		const databaseUrl = `postgresql://postgres:postgres@localhost:55432/${name}?sslmode=disable`;
+		const integrationEnv = { ...env, DATABASE_URL: databaseUrl, TEST_DATABASE_URL: databaseUrl, TEST_MONGODB_URI: `mongodb://localhost:27027/${name}?directConnection=true` };
 		run("npx", ["prisma", "migrate", "deploy"], { env: integrationEnv });
 		run("npx", ["vitest", "run", "--config", "vitest.integration.config.ts"], { env: integrationEnv });
 	},

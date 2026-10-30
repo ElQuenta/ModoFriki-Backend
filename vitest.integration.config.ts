@@ -1,21 +1,22 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
+import { integrationEnvironment } from "./test-support/integration-environment";
 
-// Integration tests: real PostgreSQL from docker-compose.test.yml (or the CI service), never Render.
-// Run with `npm run test:integration` (sets DATABASE_URL to the disposable database).
+// Evaluated before collecting/importing tests. No fallback to application or unit URLs.
+// `npm run test:integration` sets TEST_DATABASE_URL/TEST_MONGODB_URI to the disposable
+// docker-compose.test.yml servers (database mf_admin_test_integration).
+const env = integrationEnvironment(process.env);
+
 export default defineConfig({
 	test: {
-		include: ["src/**/__integration__/**/*.int.test.ts"],
+		include: ["src/**/__tests__/**/*.integration.test.ts", "src/**/__integration__/**/*.int.test.ts"],
+		exclude: [...configDefaults.exclude],
 		environment: "node",
+		env,
+		// Second guard for the __integration__ suites, which write and drop data.
 		setupFiles: ["src/__integration__/guard.ts"],
 		fileParallelism: false,
-		testTimeout: 60_000,
-		hookTimeout: 60_000,
-		env: {
-			NODE_ENV: "test",
-			MONGODB_URI: "mongodb://localhost:27017/unused",
-			JWT_SECRET: "test-secret-test-secret-test-secret-123",
-			BCRYPT_SALT_ROUNDS: "4",
-			LOG_LEVEL: "error"
-		}
+		testTimeout: 15_000,
+		// First Prisma connection and fixture creation can be slow on cold machines.
+		hookTimeout: 60_000
 	}
 });
