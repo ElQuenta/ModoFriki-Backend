@@ -2423,6 +2423,7 @@ components:
           maximum: 5
     WorkRef:
       type: object
+      required: [id, slug, title, coverUrl, thumbUrl]
       properties:
         id:
           type: string
@@ -2440,6 +2441,7 @@ components:
           description: Miniatura WebP de 300 px para tarjetas; null hasta que corre media:thumbnails (usar coverUrl).
     LatestChapter:
       type: object
+      required: [id, workId, number, title, kind, publishedAt, work]
       properties:
         id:
           type: string
@@ -2463,6 +2465,7 @@ components:
           $ref: "#/components/schemas/WorkRef"
     LatestChapterPage:
       type: object
+      required: [items, total, page, limit]
       properties:
         items:
           type: array
