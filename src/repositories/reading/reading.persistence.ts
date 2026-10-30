@@ -5,9 +5,10 @@ import { lockWork } from "../catalog/catalog.persistence";
 
 export const visibleWork = { publicationStatus: "PUBLISHED", deletedAt: null } as const;
 export const visibleChapter = { status: "PUBLISHED", deletedAt: null, work: visibleWork } as const;
-export const summarySelect = { id: true, title: true, slug: true, coverAsset: { select: { url: true } } } as const;
-export function workSummary(work: { id: string; title: string; slug: string; coverAsset: { url: string } | null }) {
- return { id: work.id, title: work.title, slug: work.slug, coverUrl: work.coverAsset?.url ?? null };
+export const summarySelect = { id: true, title: true, slug: true, coverAsset: { select: { url: true } }, coverThumbAsset: { select: { url: true } } } as const;
+export function workSummary(work: { id: string; title: string; slug: string; coverAsset: { url: string } | null; coverThumbAsset?: { url: string } | null }) {
+ // thumbUrl: small WebP for cards (null until media:thumbnails runs); coverUrl stays the original.
+ return { id: work.id, title: work.title, slug: work.slug, coverUrl: work.coverAsset?.url ?? null, thumbUrl: work.coverThumbAsset?.url ?? null };
 }
 export function pagination(input: ReadingPageInput = {}) {
  return { skip: Math.max(0, Math.min(Math.trunc(input.skip ?? 0), 9999900)), take: Math.max(1, Math.min(Math.trunc(input.take ?? 20), 100)) };

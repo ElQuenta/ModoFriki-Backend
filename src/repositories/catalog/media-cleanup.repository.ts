@@ -2,7 +2,7 @@ import prisma from "../../config/database/postgres";
 import type { PrismaClient } from "../../generated/prisma/client";
 
 // A file is only removable when nothing points at it. Checked when queued AND again when claimed.
-const unreferenced = { pages: { none: {} }, workCovers: { none: {} }, incapBanners: { none: {} }, siteSettings: { none: {} } };
+const unreferenced = { pages: { none: {} }, workCovers: { none: {} }, coverThumbs: { none: {} }, incapBanners: { none: {} }, siteSettings: { none: {} } };
 const noPendingBatch = { uploadObjects: { none: { batch: { status: "PENDING" as const } } } };
 export const CLEANUP_MAX_ATTEMPTS = 5;
 

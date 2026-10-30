@@ -153,6 +153,7 @@ model Work {
   releaseStatus      WorkReleaseStatus      @default(ONGOING)
   coverAssetId       String?                @db.Uuid
   incapBannerAssetId String?                @db.Uuid
+  coverThumbAssetId  String?                @db.Uuid
   createdById        String                 @db.Uuid
   updatedById        String                 @db.Uuid
   createdAt          DateTime               @default(now()) @db.Timestamptz(3)
@@ -163,6 +164,7 @@ model Work {
   type               WorkType               @relation(fields: [typeId], references: [id], onDelete: Restrict)
   coverAsset         MediaAsset?            @relation("WorkCover", fields: [coverAssetId], references: [id], onDelete: Restrict)
   incapBannerAsset   MediaAsset?            @relation("WorkIncapBanner", fields: [incapBannerAssetId], references: [id], onDelete: Restrict)
+  coverThumbAsset    MediaAsset?            @relation("WorkCoverThumb", fields: [coverThumbAssetId], references: [id], onDelete: Restrict)
   createdBy          User                   @relation("WorkCreator", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy          User                   @relation("WorkUpdater", fields: [updatedById], references: [id], onDelete: Restrict)
   editorAssignments  WorkEditorAssignment[]
@@ -177,6 +179,7 @@ model Work {
 
   @@index([typeId, publicationStatus, publishedAt, id])
   @@index([publicationStatus, deletedAt, visitsCount])
+  @@index([coverThumbAssetId])
 }
 
 model WorkAlternativeTitle {
@@ -259,6 +262,7 @@ model MediaAsset {
   createdBy     User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
   workCovers    Work[]            @relation("WorkCover")
   incapBanners  Work[]            @relation("WorkIncapBanner")
+  coverThumbs   Work[]            @relation("WorkCoverThumb")
   pages         ChapterPage[]
   siteSettings  SiteSettings[]
   uploadObjects UploadObject[]
