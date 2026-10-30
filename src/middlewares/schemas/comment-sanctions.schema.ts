@@ -11,7 +11,7 @@ const canonicalInstant = Joi.string()
 export const commentSanctionUserParamsSchema = Joi.object({ userId: uuid }).unknown(false).required();
 export const commentSanctionParamsSchema = Joi.object({ userId: uuid, sanctionId: uuid }).unknown(false).required();
 
-export const commentSanctionsQuerySchema = Joi.object({
+export const commentSanctionHistoryQuerySchema = Joi.object({
 	limit: Joi.number().integer().min(1).max(100).default(20),
 	cursorCreatedAt: canonicalInstant.optional(),
 	cursorId: uuid.optional()
@@ -19,9 +19,14 @@ export const commentSanctionsQuerySchema = Joi.object({
 
 export const imposeCommentSanctionBodySchema = Joi.object({
 	reason: Joi.string().trim().min(1).max(2000).required(),
-	endsAt: canonicalInstant.allow(null).required(),
+	endsAt: Joi.date().iso().allow(null).required(),
 	evidence: Joi.object({
 		type: Joi.string().valid("COMMENT", "REPORT").required(),
 		id: uuid
 	}).unknown(false).optional()
 }).unknown(false).required();
+
+export const revokeCommentSanctionBodySchema = Joi.object({}).unknown(false).required();
+
+// Kept as a descriptive alias for repository consumers predating the router.
+export const commentSanctionsQuerySchema = commentSanctionHistoryQuerySchema;
