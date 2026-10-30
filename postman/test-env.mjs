@@ -10,6 +10,8 @@ const TEST_ENV = {
 	DATABASE_URL: "postgresql://postgres:postgres@localhost:55432/modofriki?schema=public&sslmode=disable",
 	MONGODB_URI: "mongodb://localhost:27027/modofriki_test?directConnection=true",
 	BLOB_READ_WRITE_TOKEN: "",
+	// Autosuficiente sin .env (CI). Solo vale para la DB desechable.
+	JWT_SECRET: "test-only-secret-modofriki-disposable-env-0001",
 	// Las colecciones y el E2E repiten login/registro muchas veces seguidas.
 	RATE_LIMIT_AUTH_PER_15_MINUTES: "1000",
 	RATE_LIMIT_API_PER_MINUTE: "5000",
