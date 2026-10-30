@@ -1,8 +1,9 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
 	test: {
 		include: ["src/**/__tests__/**/*.test.ts"],
+		exclude: [...configDefaults.exclude, "**/*.integration.test.ts"],
 		environment: "node",
 		// Valores ficticios: env.ts valida al importar y los tests nunca abren conexiones reales.
 		env: {
