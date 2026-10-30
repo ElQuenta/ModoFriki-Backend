@@ -903,29 +903,35 @@ paths:
   /health:
     get:
       tags: [Health]
-      summary: Estado del servidor
+      summary: Estado del servidor y de las bases
+      description: Ejecuta SELECT 1 en PostgreSQL (máx. 3 s) y revisa la conexión de MongoDB. Pensado como health check de Render. No expone hosts ni credenciales.
       responses:
         "200":
-          description: Servidor activo
+          description: Servidor y bases disponibles
           content:
             application/json:
               schema:
                 type: object
                 required: [success, code, data]
                 properties:
-                  success:
-                    type: boolean
-                    example: true
-                  code:
-                    type: integer
-                    example: 200
-                  data:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/HealthStatus" }
+        "503":
+          description: Alguna base no responde
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, error, data]
+                properties:
+                  success: { type: boolean, example: false }
+                  code: { type: integer, example: 503 }
+                  error:
                     type: object
-                    required: [status]
                     properties:
-                      status:
-                        type: string
-                        example: ok
+                      message: { type: string, example: Service unavailable }
+                  data: { $ref: "#/components/schemas/HealthStatus" }
   /api/works:
     get:
       tags:
@@ -1879,6 +1885,13 @@ components:
         maximum: 50
         default: 20
   schemas:
+    HealthStatus:
+      type: object
+      required: [status, postgres, mongo]
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        postgres: { type: string, enum: [ok, down] }
+        mongo: { type: string, enum: [ok, down] }
     ReadingEventInput:
       type: object
       properties:

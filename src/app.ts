@@ -5,6 +5,8 @@ import express, { type ErrorRequestHandler } from "express";
 import { serve, setup } from "swagger-ui-express";
 import { parse } from "yaml";
 import config from "./config/env";
+import { isPostgresUp } from "./config/database/postgres";
+import { isMongoUp } from "./config/database/mongodb";
 import { ErrorResponseHandler } from "./handlers/error.handler";
 import { SuccessResponseHandler } from "./handlers/success.handler";
 import loggerMiddleware from "./middlewares/logger.middleware";
@@ -34,8 +36,12 @@ app.get("/", (_request, response) => {
 	SuccessResponseHandler(response, { status: "ok" });
 });
 
-app.get("/health", (_request, response) => {
-	SuccessResponseHandler(response, { status: "ok" });
+// Render health check: 503 when a database is down (no hosts or credentials in the body). GET / stays DB-free.
+app.get("/health", async (_request, response) => {
+	const [postgresUp, mongoUp] = await Promise.all([isPostgresUp(), Promise.resolve(isMongoUp())]);
+	const data = { status: postgresUp && mongoUp ? "ok" : "degraded", postgres: postgresUp ? "ok" : "down", mongo: mongoUp ? "ok" : "down" };
+	if (data.status === "ok") SuccessResponseHandler(response, data);
+	else response.status(503).json({ success: false, code: 503, error: { message: "Service unavailable" }, data });
 });
 
 app.use("/api/docs", serve, setup(openApiSpec));
