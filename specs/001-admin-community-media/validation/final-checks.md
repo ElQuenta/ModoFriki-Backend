@@ -14,6 +14,8 @@ Las configuraciones unitarias e integración usan inventarios separados. La
 configuración de integración rechaza destinos que no sean bases locales
 dedicadas. Los destinos concretos se omiten para no registrar credenciales.
 
-No se ejecutó una medición de 10 000 cuentas/decisiones: requiere un presupuesto
-de datos y umbrales de rendimiento acordados; no se presenta una medición no
-realizada como evidencia de ausencia de N+1.
+La prueba `comment-decision-scale.integration.test.ts` insertó 10 000 cuentas y
+10 000 decisiones en lotes de 500 y comprobó dos lecturas limitadas a 100 filas;
+pasó en 7,3 s contra PostgreSQL desechable. Esta cobertura demuestra el acceso
+por lotes de este escenario, sin presentar métricas como garantía universal de
+rendimiento.
