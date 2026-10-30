@@ -61,6 +61,12 @@ describe("CommunityService", () => {
 		service = new CommunityService(f.comments as never, f.votes as never, f.reports as never, f.catalog as never, f.users as never, f.publication as never);
 	});
 
+	it("allows a committed reply retry to reach recovery after its parent was soft deleted", async () => {
+		f.comments.findById.mockResolvedValue(record({ status: "DELETED", bodyMarkdown: null }));
+		await service.create({ parentCommentId: commentId, bodyMarkdown: "original" }, author, reportId);
+		expect(f.publication.create).toHaveBeenCalledWith({ parentCommentId: commentId, bodyMarkdown: "original" }, author, reportId);
+	});
+
 	describe("list", () => {
 		const emptyPage = { items: [], hasMore: false, nextCursor: null };
 

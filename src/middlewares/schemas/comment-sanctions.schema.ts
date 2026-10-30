@@ -19,7 +19,7 @@ export const commentSanctionHistoryQuerySchema = Joi.object({
 
 export const imposeCommentSanctionBodySchema = Joi.object({
 	reason: Joi.string().trim().min(1).max(2000).required(),
-	endsAt: Joi.date().iso().allow(null).required(),
+	endsAt: canonicalInstant.custom((value: string) => new Date(value)).allow(null).required(),
 	evidence: Joi.object({
 		type: Joi.string().valid("COMMENT", "REPORT").required(),
 		id: uuid

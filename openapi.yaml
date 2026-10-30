@@ -854,6 +854,12 @@ paths:
       tags: [Community]
       summary: Crear raíz o respuesta de cualquier profundidad
       security: [{ bearerAuth: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: UUID v4 opcional; misma solicitud reproduce el comentario actual, otra solicitud con la misma clave devuelve 409.
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -877,6 +883,9 @@ paths:
         '201': { $ref: '#/components/responses/CommentResult' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/comments/{id}:
     parameters: [{ $ref: '#/components/parameters/Id' }]
@@ -1616,7 +1625,7 @@ paths:
                 properties:
                   success: { type: boolean, example: true }
                   code: { type: integer, example: 200 }
-                  data: { $ref: "#/components/schemas/CatalogChapter" }
+                  data: { $ref: "#/components/schemas/CatalogChapterDetail" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -2140,36 +2149,93 @@ paths:
       summary: Restricción vigente del usuario autenticado
       security: [{ bearerAuth: [] }]
       responses:
-        '200': { description: Restricción propia; no expone actor, evidencia ni historial }
+        '200':
+          description: Restricción propia; no expone actor, evidencia ni historial
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  code: { type: integer, enum: [200] }
+                  data: { $ref: '#/components/schemas/CommentRestriction' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/admin/users/{userId}/comment-sanctions:
+    parameters: [{ $ref: '#/components/parameters/AdminUserId' }]
     get:
       tags: [Admin]
       summary: Historial de restricciones de comentarios
       security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CursorCreatedAt' }
+        - { $ref: '#/components/parameters/CursorId' }
+        - { $ref: '#/components/parameters/CursorLimit' }
       responses:
-        '200': { description: Restricción actual e historial paginado }
+        '200':
+          description: Restricción actual independiente del cursor e historial paginado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  code: { type: integer, enum: [200] }
+                  data: { $ref: '#/components/schemas/CommentSanctionHistory' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Admin]
       summary: Imponer una restricción de comentarios
       security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason, endsAt]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 2000, description: Se recortan espacios exteriores; no puede quedar vacío. }
+                endsAt: { type: string, format: date-time, nullable: true, pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$', description: UTC con milisegundos; futuro según reloj SQL. null significa permanente. }
+                evidence: { $ref: '#/components/schemas/CommentSanctionEvidence' }
       responses:
-        '201': { description: Restricción creada }
+        '201': { $ref: '#/components/responses/CommentSanctionCreated' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/admin/users/{userId}/comment-sanctions/{sanctionId}/revocation:
+    parameters:
+      - { $ref: '#/components/parameters/AdminUserId' }
+      - name: sanctionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
     put:
       tags: [Admin]
       summary: Revocar una restricción concreta
       security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
       responses:
-        '200': { description: Restricción revocada o replay idempotente }
+        '200': { $ref: '#/components/responses/CommentSanctionResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 components:
   securitySchemes:
     bearerAuth:
@@ -2223,6 +2289,54 @@ components:
       required: true
       schema: { type: string, format: uuid }
   schemas:
+    CommentSanctionEvidence:
+      type: object
+      additionalProperties: false
+      required: [type, id]
+      properties:
+        type: { type: string, enum: [COMMENT, REPORT] }
+        id: { type: string, format: uuid }
+    CommentRestriction:
+      type: object
+      required: [active, reason, endsAt, permanent]
+      properties:
+        active: { type: boolean }
+        reason: { type: string, nullable: true }
+        endsAt: { type: string, format: date-time, nullable: true }
+        permanent: { type: boolean }
+    CommentSanction:
+      type: object
+      required: [id, userId, reason, startsAt, endsAt, permanent, status, imposedById, revokedAt, revokedById, evidence]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        reason: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time, nullable: true }
+        permanent: { type: boolean }
+        status: { type: string, enum: [ACTIVE, EXPIRED, REVOKED] }
+        imposedById: { type: string, format: uuid }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        revokedById: { type: string, format: uuid, nullable: true }
+        evidence: { allOf: [{ $ref: '#/components/schemas/CommentSanctionEvidence' }], nullable: true }
+    CommentSanctionHistory:
+      type: object
+      required: [current, history]
+      properties:
+        current: { allOf: [{ $ref: '#/components/schemas/CommentSanction' }], nullable: true }
+        history:
+          type: object
+          required: [items, hasMore, nextCursor]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/CommentSanction' } }
+            hasMore: { type: boolean }
+            nextCursor:
+              type: object
+              nullable: true
+              required: [createdAt, id]
+              properties:
+                createdAt: { type: string, format: date-time }
+                id: { type: string, format: uuid }
     Taxonomy:
       type: object
       required: [id, name, slug]
@@ -2293,7 +2407,7 @@ components:
         asset: { $ref: "#/components/schemas/CatalogMediaAsset" }
     CatalogChapter:
       type: object
-      required: [id, workId, number, title, kind, status, version, createdAt, updatedAt, publishedAt, pages, readingImages]
+      required: [id, workId, number, title, kind, status, version, createdAt, updatedAt, publishedAt, pages]
       properties:
         id: { type: string, format: uuid }
         workId: { type: string, format: uuid }
@@ -2306,17 +2420,24 @@ components:
         updatedAt: { type: string, format: date-time }
         publishedAt: { type: string, format: date-time, nullable: true }
         pages: { type: array, items: { $ref: "#/components/schemas/CatalogPage" } }
-        readingImages:
-          type: array
-          description: "Apertura compartida opcional seguida por las páginas editoriales; pages no se modifica."
-          items:
-            type: object
-            required: [kind, asset, pageId, position]
-            properties:
-              kind: { type: string, enum: [WORK_OPENING, PAGE] }
-              asset: { $ref: "#/components/schemas/CatalogMediaAsset" }
-              pageId: { type: string, format: uuid, nullable: true }
-              position: { type: integer, minimum: 1, nullable: true }
+    CatalogChapterDetail:
+      allOf:
+        - { $ref: '#/components/schemas/CatalogChapter' }
+        - type: object
+          required: [readingImages]
+          properties:
+            readingImages: { $ref: '#/components/schemas/ChapterReadingImages' }
+    ChapterReadingImages:
+      type: array
+      description: Apertura compartida opcional seguida por las páginas editoriales; pages no se modifica.
+      items:
+        type: object
+        required: [kind, asset, pageId, position]
+        properties:
+          kind: { type: string, enum: [WORK_OPENING, PAGE] }
+          asset: { $ref: '#/components/schemas/CatalogMediaAsset' }
+          pageId: { type: string, format: uuid, nullable: true }
+          position: { type: integer, minimum: 1, nullable: true }
     HealthStatus:
       type: object
       required: [status, postgres, mongo]
@@ -2895,6 +3016,28 @@ components:
       type: string
       enum: [LEYENDO, POR_LEER, COMPLETADO, PAUSA]
   responses:
+    CommentSanctionResult:
+      description: Sanción concreta; revocación idempotente sin alterar una posterior
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, code, data]
+            properties:
+              success: { type: boolean, enum: [true] }
+              code: { type: integer, enum: [200] }
+              data: { $ref: '#/components/schemas/CommentSanction' }
+    CommentSanctionCreated:
+      description: Sanción y auditoría confirmadas atómicamente
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, code, data]
+            properties:
+              success: { type: boolean, enum: [true] }
+              code: { type: integer, enum: [201] }
+              data: { $ref: '#/components/schemas/CommentSanction' }
     AdminUserResult:
       description: Cuenta administrativa sin email, normalizados ni credenciales
       content:

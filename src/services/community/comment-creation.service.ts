@@ -15,7 +15,7 @@ export type CreateCommentRequest =
 export class CommentCreationService {
 	constructor(
 		private readonly decisions: CommentCreationRepositoryContract = commentCreationRepository,
-		private readonly comments: Pick<CommentRepository, "stageRoot" | "stageReply"> = new CommentRepository({ decisions: commentCreationRepository }),
+		private readonly comments: Pick<CommentRepository, "stageRoot" | "stageReply" | "recoverCommitted"> = new CommentRepository({ decisions: commentCreationRepository }),
 		private readonly catalog: CatalogRepositoryContract = catalogRepository
 	) {}
 
@@ -43,6 +43,7 @@ export class CommentCreationService {
 			if (prepared.rejectionCode === "SANCTIONED") throw new AppError("Comment creation restricted", 403);
 			throw new AppError("Comment creation outcome unavailable", 503);
 		}
+		if (prepared.state === "COMMITTED") return this.comments.recoverCommitted(operationId, actor.id);
 		let staged: CommentRecord;
 		if (typeof request.parentCommentId === "string") {
 			staged = await this.comments.stageReply({ operationId, authorId: actor.id, parentCommentId: request.parentCommentId, bodyMarkdown: request.bodyMarkdown });

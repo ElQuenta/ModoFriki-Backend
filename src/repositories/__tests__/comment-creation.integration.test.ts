@@ -112,4 +112,22 @@ describe("durable comment creation protocol", () => {
 		const operation = (async () => { await barrier.pause(); completed = true; })();
 		await barrier.reached; expect(completed).toBe(false); barrier.release(); await operation; expect(completed).toBe(true);
 	});
+
+	it.each(["ROOT", "REPLY"])("recovers COMMITTED %s after edits and deletion without comparing mutable content", async kind => {
+		const path = "../../services/community/comment-creation.service.js";
+		const { CommentCreationService } = await import(path);
+		const service = new CommentCreationService(decisions, comments);
+		const actor = { id: userId, role: "BASIC" };
+		const parentId = randomUUID(), id = randomUUID();
+		for (const owned of [parentId, id]) { mongoIds.add(owned); sqlIds.add(owned); }
+		await service.create({ targetType: "WORK", targetId: workId, bodyMarkdown: "parent" }, actor, parentId);
+		const request = kind === "ROOT" ? { targetType: "WORK", targetId: workId, bodyMarkdown: "original" } : { parentCommentId: parentId, bodyMarkdown: "original" };
+		await service.create(request, actor, id);
+		await comments.editOwn({ commentId: id, authorId: userId, expectedRevision: 0, bodyMarkdown: "edited" });
+		await expect(service.create(request, actor, id)).resolves.toMatchObject({ _id: id, bodyMarkdown: "edited" });
+		await comments.softDeleteOwn({ commentId: parentId, authorId: userId });
+		await comments.softDeleteOwn({ commentId: id, authorId: userId });
+		await expect(service.create(request, actor, id)).resolves.toMatchObject({ _id: id, status: "DELETED", bodyMarkdown: null });
+		await expect(service.create({ ...request, bodyMarkdown: "different request" }, actor, id)).rejects.toMatchObject({ statusCode: 409 });
+	});
 });

@@ -111,7 +111,7 @@ export async function persistenceOperation<T>(operation: () => Promise<T>): Prom
 		}
 		// Driver messages may contain document contents, credentials or connection strings.
 		logger.error("Community persistence operation failed");
-		return catchAndLogError(logger, new AppError("Community persistence operation failed", 500), "Community persistence operation failed");
+		return catchAndLogError(logger, new AppError("Community persistence unavailable", 503), "Community persistence operation failed");
 	}
 }
 

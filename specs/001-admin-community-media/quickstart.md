@@ -1,6 +1,6 @@
 # Quickstart de validación
 
-Guía para ejecutar cuando exista la implementación. Los archivos nuevos de aplicación y la configuración de integración aquí mencionados todavía deben crearse en P1–P6; este plan no afirma que los comandos de feature ya pasen. Contratos: [HTTP](contracts/http-api.md), [persistencia](contracts/persistence.md), [modelo](data-model.md).
+Guía de validación de la implementación actual. Contratos: [HTTP](contracts/http-api.md), [persistencia](contracts/persistence.md), [modelo](data-model.md). La aceptación del consumidor sigue siendo una dependencia externa registrada en `validation/frontend-contract.md`.
 
 ## Prerrequisitos y aislamiento
 
@@ -25,7 +25,7 @@ Generar no aplica migraciones. No existe npm run lint. No usar prisma:migrate (m
 
 Aplicar migración revisada solo en destino desechable verificado con el procedimiento de despliegue aprobado. Antes del despliegue compartido comprobar historial/drift, backup/restauración y reconciliación del baseline: README y carpeta de migraciones local no coinciden en el baseline citado. No marcar aplicada una migración ausente para ocultar esa diferencia.
 
-Config de integración propuesta, una vez implementada y con destinos explícitos preparados:
+Con destinos explícitos preparados, ejecutar integración:
 
 ```powershell
 npx vitest run --config vitest.integration.config.ts
@@ -56,4 +56,32 @@ Completar validation/frontend-contract.md con repositorio, versión o SHA, respo
 
 Registrar comandos, resultados reales y destinos de test identificados sin secretos. Pasar build, suites existentes, nuevas unitarias/HTTP y pruebas reales de SQL/Mongo/carreras; Blob real solo declarar probado si se ejecutó. Auditar DTO/logs, OpenAPI/API y consumidor. Revisión independiente y de seguridad antes de proponer QA; aprobación humana antes de integrar a QA.
 
-Esta entrega de planificación solo valida documentación. No se aplicaron migraciones, ni se ejecutó seed, build o tests de funcionalidad futura; no se crearon ramas/worktrees, commits o despliegues.
+La rama de la fase 7 valida documentación, migraciones y pruebas en proveedores desechables. No se aplicaron migraciones ni se realizó despliegue sobre una base compartida; la aceptación explícita del consumidor sigue siendo necesaria antes de proponer integración a QA.
+
+## Cierre de fase 7 (2026-10-30)
+
+T060–T066 completadas; T067 permanece pendiente. El consumidor identificado es
+`ElQuenta/ModoFriki-Web`, con despliegue comunicado en
+https://modo-friki-web.vercel.app/. Registrar versión efectivamente probada,
+responsable, resultados y aceptación en `validation/frontend-contract.md`.
+
+Checks adicionales reproducibles desde la raíz:
+
+```text
+node test-support/check-test-isolation.mjs
+node test-support/check-api-contract.mjs
+node test-support/deployment-rehearsal.mjs <runtime.json> <rollback/dist/index.js>
+```
+
+El último comando requiere instancias nuevas propias de PostgreSQL/Mongo replica
+set, binarios pg_dump/pg_restore, build candidato y artefacto compatible previo;
+no aprovisiona ni descubre destinos de aplicación. Ver
+`validation/deployment-rehearsal.md` para formato de runtime, evidencia y límites.
+Nunca reutilizar una base compartida ni .env como destino implícito.
+
+La validación actual pasa 511 unitarias y 57 integraciones, además de Prisma,
+build, inventarios disjuntos y contrato. Se corrigieron wiring de evidencia,
+fechas, replay COMMITTED, errores Mongo, decodificación de imágenes y OpenAPI.
+Solo detalle GET devuelve readingImages. Los borradores incompletos siguen
+permitidos; publicar sin exención exige las tres referencias. Sin Blob de test
+autorizado, no se declara ese proveedor real validado.

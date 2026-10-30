@@ -165,7 +165,8 @@ export class CommunityService {
 			let request: CreateCommentRequest;
 			if (body.parentCommentId !== undefined) {
 				if (body.targetType !== undefined || body.targetId !== undefined) throw new AppError("Reply destination is inherited from its parent", 400);
-				const parent = await this.comment(body.parentCommentId, true);
+				// A committed retry survives parent soft deletion; a fresh stageReply still requires ACTIVE.
+				const parent = await this.comment(body.parentCommentId, idempotencyKey === undefined);
 				request = { parentCommentId: parent._id, bodyMarkdown };
 			} else {
 				const targetType = enumValue(body.targetType, COMMENT_TARGET_TYPES, "targetType");
