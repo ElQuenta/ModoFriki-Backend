@@ -2,12 +2,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
+import helmet from "helmet";
 import { serve, setup } from "swagger-ui-express";
 import { parse } from "yaml";
 import config from "./config/env";
 import { ErrorResponseHandler } from "./handlers/error.handler";
 import { SuccessResponseHandler } from "./handlers/success.handler";
 import loggerMiddleware from "./middlewares/logger.middleware";
+import { apiRateLimit, authRateLimit } from "./middlewares/rate-limit.middleware";
 import authRouter from "./routes/auth.routes";
 import communityRouter from "./routes/community.routes";
 import discoveryRouter from "./routes/discovery.routes";
@@ -25,7 +27,9 @@ const bodyErrorMessages: Record<string, string> = {
 };
 
 const app = express();
+app.set("trust proxy", config.trustProxy);
 
+app.use(helmet());
 app.use(loggerMiddleware);
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
@@ -39,6 +43,8 @@ app.get("/health", (_request, response) => {
 });
 
 app.use("/api/docs", serve, setup(openApiSpec));
+app.use("/api", apiRateLimit);
+app.use(["/api/auth/login", "/api/auth/register"], authRateLimit);
 app.use("/api/auth", authRouter);
 app.use("/api", communityRouter);
 app.use("/api", discoveryRouter);

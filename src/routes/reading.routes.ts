@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { ReadingController } from "../controllers/reading/reading.controller";
 import { createAuthenticate, createOptionalAuthenticate } from "../middlewares/auth.middleware";
+import { anonymousEventRateLimit } from "../middlewares/rate-limit.middleware";
 import { authService, type AuthService } from "../services/auth/auth.service";
 import { readingService, type ReadingService } from "../services/reading/reading.service";
 
@@ -9,10 +10,10 @@ export function createReadingRouter(service: ReadingService = readingService, au
 	const authenticate = createAuthenticate(auth);
 	const optionalAuthenticate = createOptionalAuthenticate(auth);
 	const controller = new ReadingController(service);
-	router.post("/works/:workId/visits", optionalAuthenticate, controller.recordVisit);
+	router.post("/works/:workId/visits", anonymousEventRateLimit, optionalAuthenticate, controller.recordVisit);
 	router.get("/works/:workId/stats", controller.getWorkStats);
 	router.route("/works/:workId/rating").put(authenticate, controller.setRating).delete(authenticate, controller.removeRating);
-	router.post("/chapters/:chapterId/read-events", optionalAuthenticate, controller.recordRead);
+	router.post("/chapters/:chapterId/read-events", anonymousEventRateLimit, optionalAuthenticate, controller.recordRead);
 	router.route("/me/read-chapters/:chapterId").put(authenticate, controller.markRead).delete(authenticate, controller.unmarkRead);
 	router.get("/me/favorites", authenticate, controller.listFavorites);
 	router.route("/me/favorites/:workId").put(authenticate, controller.setFavorite).delete(authenticate, controller.removeFavorite);

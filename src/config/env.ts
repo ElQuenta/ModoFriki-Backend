@@ -12,7 +12,12 @@ const envSchema = Joi.object({
 	BCRYPT_SALT_ROUNDS: Joi.number().integer().min(4).max(31).default(12),
 	BLOB_READ_WRITE_TOKEN: Joi.string().allow("").optional(),
 	FRONTEND_URL: Joi.string().uri({ scheme: ["http", "https"] }).allow("").optional(),
-	LOG_LEVEL: Joi.string().valid("error", "warn", "info", "http", "verbose", "debug", "silly").default("info")
+	LOG_LEVEL: Joi.string().valid("error", "warn", "info", "http", "verbose", "debug", "silly").default("info"),
+	// Proxies in front of the app (Render = 1) so rate limits see the client IP, not the proxy's.
+	TRUST_PROXY: Joi.number().integer().min(0).max(10).default(1),
+	RATE_LIMIT_API_PER_MINUTE: Joi.number().integer().min(1).default(300),
+	RATE_LIMIT_AUTH_PER_15_MINUTES: Joi.number().integer().min(1).default(20),
+	RATE_LIMIT_EVENTS_PER_MINUTE: Joi.number().integer().min(1).default(30)
 }).unknown(true);
 
 const { error, value } = envSchema.validate(process.env, {
@@ -38,6 +43,12 @@ interface EnvironmentVariables {
 	};
 	frontendUrl?: string;
 	logLevel: "error" | "warn" | "info" | "http" | "verbose" | "debug" | "silly";
+	trustProxy: number;
+	rateLimit: {
+		apiPerMinute: number;
+		authPer15Minutes: number;
+		eventsPerMinute: number;
+	};
 }
 
 const config: EnvironmentVariables = {
@@ -53,7 +64,13 @@ const config: EnvironmentVariables = {
 		readWriteToken: value.BLOB_READ_WRITE_TOKEN
 	},
 	frontendUrl: value.FRONTEND_URL?.replace(/\/+$/, "") || undefined,
-	logLevel: value.LOG_LEVEL
+	logLevel: value.LOG_LEVEL,
+	trustProxy: value.TRUST_PROXY,
+	rateLimit: {
+		apiPerMinute: value.RATE_LIMIT_API_PER_MINUTE,
+		authPer15Minutes: value.RATE_LIMIT_AUTH_PER_15_MINUTES,
+		eventsPerMinute: value.RATE_LIMIT_EVENTS_PER_MINUTE
+	}
 };
 
 export default config;

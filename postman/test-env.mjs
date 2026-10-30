@@ -8,7 +8,11 @@ import { readFileSync } from "node:fs";
 const TEST_ENV = {
 	DATABASE_URL: "postgresql://postgres:postgres@localhost:55432/modofriki?schema=public&sslmode=disable",
 	MONGODB_URI: "mongodb://localhost:27027/modofriki_test?directConnection=true",
-	BLOB_READ_WRITE_TOKEN: ""
+	BLOB_READ_WRITE_TOKEN: "",
+	// Las colecciones y el E2E repiten login/registro muchas veces seguidas.
+	RATE_LIMIT_AUTH_PER_15_MINUTES: "1000",
+	RATE_LIMIT_API_PER_MINUTE: "5000",
+	RATE_LIMIT_EVENTS_PER_MINUTE: "1000"
 };
 const env = { ...process.env, ...TEST_ENV };
 const compose = ["compose", "-f", "docker-compose.test.yml"];
