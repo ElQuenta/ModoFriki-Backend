@@ -197,6 +197,7 @@ Como EDITOR asignado o ADMIN quiero subir una imagen con un mensaje propio al fi
 
 ## Assumptions
 
+- La protección general contra abuso, la limitación de solicitudes (rate limiting) y las cuotas acumulativas por usuario o globales quedan fuera de esta feature. Los límites por petición y consulta no garantizan disponibilidad frente a abuso ni crecimiento total acotado. El vencimiento de una preparación a los 60 segundos invalida su permiso, pero no elimina decisiones ni documentos provisionales; tampoco se amplía la limpieza de Blob. El coordinador registra estos riesgos para seguimiento separado, sin presentar controles futuros como implementados.
 - Las respuestas confirman BASIC ↔ EDITOR como únicos cambios administrativos y la protección de ADMIN. Crear administradores queda fuera de los flujos de producto de esta feature.
 - Por decisión explícita de la segunda sesión de aclaración, ADMIN activo puede cambiar BASIC ↔ EDITOR tanto en destinatarios activos como suspendidos, conservando su estado. No se añade reactivación de cuentas; las nuevas asignaciones siguen exigiendo EDITOR activo.
 - No se añade eliminación de BASIC/EDITOR: la solicitud original pide listado y cambios de rol, y explicita la prohibición de eliminar ADMIN. Una eliminación administrativa futura deberá conservar esa protección.
