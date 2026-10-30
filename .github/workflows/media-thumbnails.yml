@@ -1,0 +1,31 @@
+name: Miniaturas de portadas
+
+# Los cron de GitHub solo corren desde la rama por defecto (main).
+# Solo agrega archivos (nunca borra): genera las miniaturas que faltan o quedaron viejas.
+on:
+  schedule:
+    - cron: "15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  thumbnails:
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+      # env.ts los exige al importar, pero este proceso no usa Mongo ni JWT.
+      MONGODB_URI: mongodb://unused:27017/unused
+      JWT_SECRET: unused-in-media-thumbnails-unused-in-media-thumbnails
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Generar miniaturas
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "Falta el secret DATABASE_URL"; exit 1; fi
+          npm run media:thumbnails

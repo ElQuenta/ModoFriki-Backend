@@ -40,8 +40,15 @@ const actions = {
 		spawn("npx", ["tsx", "src/index.ts"], { stdio: "inherit", env, shell: process.platform === "win32" })
 			.on("exit", code => process.exit(code ?? 0));
 	},
+	// Base propia en el mismo Postgres: los tests de integración crean obras y capítulos que, en la base
+	// "modofriki", desplazarían los fixtures que esperan la colección Postman y el E2E.
 	integration() {
-		run("npx", ["vitest", "run", "--config", "vitest.integration.config.ts"]);
+		const exists = spawnSync("docker", ["exec", "modofriki-test-pg", "psql", "-U", "postgres", "-tAc", "SELECT 1 FROM pg_database WHERE datname = 'modofriki_integration'"], { encoding: "utf8" });
+		if (exists.status !== 0) process.exit(exists.status ?? 1);
+		if (exists.stdout.trim() !== "1") run("docker", ["exec", "modofriki-test-pg", "createdb", "-U", "postgres", "modofriki_integration"]);
+		const integrationEnv = { ...env, DATABASE_URL: TEST_ENV.DATABASE_URL.replace("/modofriki?", "/modofriki_integration?") };
+		run("npx", ["prisma", "migrate", "deploy"], { env: integrationEnv });
+		run("npx", ["vitest", "run", "--config", "vitest.integration.config.ts"], { env: integrationEnv });
 	},
 	down() {
 		run("docker", [...compose, "down", "-v"]);

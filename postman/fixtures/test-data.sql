@@ -17,10 +17,11 @@ INSERT INTO "Genre" ("id", "name", "slug") VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "MediaAsset" ("id", "pathname", "url", "contentType", "sizeBytes", "width", "height", "createdById") VALUES
-	('55555555-5555-4555-8555-555555555551', 'test/cover.png', 'https://placehold.co/600x900.png?text=Portada', 'image/png', 1000, 600, 900, '11111111-1111-4111-8111-111111111111'),
-	('55555555-5555-4555-8555-555555555552', 'test/page-1.png', 'https://placehold.co/800x1200.png?text=Pagina+1', 'image/png', 1000, 800, 1200, '11111111-1111-4111-8111-111111111111'),
-	('55555555-5555-4555-8555-555555555553', 'test/page-2.png', 'https://placehold.co/800x1200.png?text=Pagina+2', 'image/png', 1000, 800, 1200, '11111111-1111-4111-8111-111111111111')
-ON CONFLICT DO NOTHING;
+	('55555555-5555-4555-8555-555555555551', 'obra-de-prueba/Covers/c0de.png', 'https://placehold.co/600x900.png?text=Portada', 'image/png', 1000, 600, 900, '11111111-1111-4111-8111-111111111111'),
+	('55555555-5555-4555-8555-555555555552', 'obra-de-prueba/Chapter-7777/aaaa-1.png', 'https://placehold.co/800x1200.png?text=Pagina+1', 'image/png', 1000, 800, 1200, '11111111-1111-4111-8111-111111111111'),
+	('55555555-5555-4555-8555-555555555553', 'obra-de-prueba/Chapter-7777/bbbb-2.png', 'https://placehold.co/800x1200.png?text=Pagina+2', 'image/png', 1000, 800, 1200, '11111111-1111-4111-8111-111111111111')
+-- Rutas con el formato real del pipeline (assertMediaPath), para miniaturas y limpieza.
+ON CONFLICT ("id") DO UPDATE SET "pathname" = EXCLUDED."pathname";
 
 -- Una obra publicada (visible) y una en borrador (debe dar 404 al público).
 INSERT INTO "Work" ("id", "title", "slug", "synopsis", "typeId", "publicationStatus", "releaseStatus", "coverAssetId", "createdById", "updatedById", "updatedAt", "publishedAt") VALUES

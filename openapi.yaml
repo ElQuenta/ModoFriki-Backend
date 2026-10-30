@@ -1938,6 +1938,10 @@ components:
         coverUrl:
           type: string
           nullable: true
+        thumbUrl:
+          type: string
+          nullable: true
+          description: Miniatura WebP de 300 px para tarjetas; null hasta que corre media:thumbnails (usar coverUrl).
     ReadingFavorite:
       type: object
       properties:
@@ -2196,6 +2200,10 @@ components:
         coverUrl:
           type: string
           nullable: true
+        thumbUrl:
+          type: string
+          nullable: true
+          description: Miniatura WebP de 300 px para tarjetas; null hasta que corre media:thumbnails (usar coverUrl).
     LatestChapter:
       type: object
       properties:
