@@ -165,6 +165,8 @@ Trazabilidad: FR-001–005/021 → P2/P4, SC-001–003/008; FR-006–012/022 →
 
 ## Riesgos y recuperación
 
+CHK037, revisión de requisitos 2026-10-30: quedan fuera la protección general contra abuso, rate limiting y cuotas acumulativas por usuario/globales. Los límites por petición/consulta y el plazo lógico de preparación de 60s no acotan la acumulación de decisiones SQL, provisionales Mongo ni archivos Blob conservados. No se promete protección frente a denegación de servicio o agotamiento de almacenamiento; no se añaden purgas, workers ni garantías operativas. El coordinador conserva este riesgo en validation/requirements-review.md para seguimiento separado; cualquier control futuro requiere alcance y validación propios.
+
 Más consultas SQL y provisionales Mongo: batch/índices y fail-closed, sin N+1 o purga automática. Protocolo entre proveedores necesita prueba real antes de aceptación. Rollback viejo inseguro tras corte. Historial real no probado por archivos locales. Adaptación de frontend se entrega como contrato, no se afirma editar otro repo. Blob público no da privacidad de borradores. Un fallo de estos controles bloquea desplegar sanciones como si estuvieran garantizadas.
 
 ## Complexity Tracking
@@ -173,8 +175,10 @@ Sin excepciones constitucionales. El journal SQL representa decisiones de permis
 
 ## Estado de entrega
 
-Solo diseño documental. Sin modificaciones de dependencias, aplicación o proveedores; sin pruebas de implementación/migraciones ejecutadas. Rama Git dev, sin commit/merge/QA. Siguiente fase: speckit-tasks.
+Solo diseño documental. Sin modificaciones de dependencias, aplicación o proveedores; sin pruebas de implementación/migraciones ejecutadas. Rama Git dev, sin commit/merge/QA. Las tareas están generadas en [tasks.md](tasks.md). La siguiente fase es speckit-implement, comenzando por los controles T001–T004.
 
 Revisión de planificación por planner, DB y media de solo lectura: corregidos createdAt de asignación/backfill/índice, recuperación durable de staging primary/majority, semántica de borrado de padre, cursor no opaco y preservación de timeout de 30s de capítulos. El coordinador verifica enlaces locales, fences, ausencia de marcadores de plantilla, coherencia de decisiones y git diff --check. Estas verificaciones documentales no acreditan la futura implementación.
 
 Correcciones documentales C1/I1/U1/G1/G2/I2 aprobadas y aplicadas el 2026-10-29. Revalidación de destino, aislamiento de suites, tablas de estados, política de refresco y gate de consumidor quedan trazados en tasks.md. No se han ejecutado sus futuras pruebas ni cambiado configuración de aplicación/proveedores.
+
+Avance 2026-10-30: revisión de requisitos 40/40 tras aclarar CHK037 y fase 1 T001–T004 completadas documentalmente en [validation/preflight.md](validation/preflight.md), [requirements-review.md](validation/requirements-review.md), [ownership.md](validation/ownership.md) y [test-environments.md](validation/test-environments.md). Rama actual `feature/admin-community-media`, creada desde `dev`, sin commits nuevos. Los metadatos iniciales describen la planificación anterior. Fases 2–7, pruebas de aplicación/proveedores y gates de consumidor/despliegue siguen pendientes.
