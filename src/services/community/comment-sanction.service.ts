@@ -1,5 +1,5 @@
-import type { CommentRepository } from "../../repositories/community/comment.repository";
-import type { CommentReportRepository } from "../../repositories/community/comment-report.repository";
+import { CommentRepository } from "../../repositories/community/comment.repository";
+import { CommentReportRepository } from "../../repositories/community/comment-report.repository";
 import { commentSanctionRepository } from "../../repositories/community/comment-sanction.repository";
 import type { AdminActor, CursorPageInput } from "../../types/admin.types";
 import type { ImposeSanctionInput, RestrictionDto, SanctionDto, SanctionHistoryDto, SanctionRecord, SanctionRepositoryContract, ValidatedSanctionEvidence } from "../../types/sanctions.types";
@@ -46,4 +46,9 @@ export class CommentSanctionService {
 	}
 }
 
-export const commentSanctionService = new CommentSanctionService();
+const comments = new CommentRepository();
+const reports = new CommentReportRepository();
+export const commentSanctionService = new CommentSanctionService(commentSanctionRepository, {
+	findCommentEvidence: (id) => comments.findCommentEvidence(id),
+	findReportEvidence: (id) => reports.findReportEvidence(id)
+});

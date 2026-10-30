@@ -144,6 +144,17 @@ export class CommentRepository {
 		}
 	}
 
+	/** SQL has already verified the immutable request fingerprint for this COMMITTED replay. */
+	async recoverCommitted(operationId: string, authorId: string): Promise<CommentRecord> {
+		return persistenceOperation(async () => {
+			const record = await this.readStaged(uuid(operationId, "operationId"));
+			if (!record || record.authorId !== authorId || record.creationOperationId !== operationId) {
+				throw new AppError("Comment creation outcome unavailable", 503);
+			}
+			return record;
+		});
+	}
+
 	async findCommentEvidence(commentId: string): Promise<ValidatedSanctionEvidence | null> {
 		try {
 			const id = uuid(commentId, "commentId");

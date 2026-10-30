@@ -34,6 +34,8 @@ describe("comment sanction Joi contracts", () => {
 		{ reason: "", endsAt: null }, { reason: "   ", endsAt: null },
 		{ reason: "x".repeat(2001), endsAt: null }, { reason: "ok" },
 		{ reason: "ok", endsAt: "tomorrow" }, { reason: "ok", endsAt: null, startsAt: new Date() },
+		{ reason: "ok", endsAt: "2030-01-01" }, { reason: "ok", endsAt: "2030-01-01T12:00:00" },
+		{ reason: "ok", endsAt: "2030-02-30T12:00:00.000Z" }, { reason: "ok", endsAt: "2030-01-01T12:00:00.000+01:00" },
 		{ reason: "ok", endsAt: null, imposedById: userId }, { reason: "ok", endsAt: null, closedAt: null }
 	])("rejects invalid or server-owned sanction input %#", input => {
 		expect(valid(schemas.imposeCommentSanctionBodySchema, input).error).toBeDefined();

@@ -1,6 +1,6 @@
 # Persistencia PostgreSQL
 
-El esquema contiene 20 modelos de dominio y conserva `Example` sin cambios. PostgreSQL es la fuente de verdad de usuarios/permisos, catálogo/capítulos, medios, biblioteca y actividad. Comentarios, respuestas, votos y reportes pertenecen exclusivamente a MongoDB y no tienen tablas ni FK aquí.
+El esquema conserva `Example` y centraliza usuarios/permisos, catálogo/capítulos, medios, biblioteca y actividad. Comentarios, respuestas, votos y reportes pertenecen a MongoDB. PostgreSQL guarda exclusivamente el permiso durable de creación de comentarios, sin texto ni copia del contenido.
 
 ## Configuración existente
 
@@ -26,8 +26,9 @@ una base PostgreSQL desechable; no se aplicaron a una base compartida:
 4. `20261029000100_admin_assignments`: administración de roles y asignaciones.
 5. `20261029000200_comment_sanctions_decisions`: sanciones y decisiones durables de creación de comentarios.
 6. `20261029000300_work_detail_banner`: banner de ficha y exención histórica de imágenes.
+7. `20261030000100_work_cover_thumbnail`: referencia opcional de miniatura de portada; mantiene las referencias independientes.
 
-No se ejecutaron `migrate dev`, `migrate deploy`, `migrate resolve`, `db push`, reset ni operaciones contra datos existentes. Un push de Git publica los archivos, no aplica estas migraciones.
+`migrate deploy` se ejecutó únicamente en destinos desechables identificados en la evidencia de validación. No se ejecutaron migraciones sobre bases compartidas ni `migrate dev`, `migrate resolve`, `db push` o reset. Un push de Git publica archivos, no aplica estas migraciones.
 
 ### Antes de cualquier aplicación
 
@@ -56,17 +57,17 @@ Al generar nuevas migraciones, revisar que se conservan estos CHECK e índice pa
 
 Los índices atienden filtros de catálogo/género, asignaciones, orden de capítulos/páginas, biblioteca, calendario, ventanas de lectura/visita y colas de limpieza. Búsqueda por `contains` no queda acelerada por promesa de un índice B-tree: evaluar búsqueda textual con datos reales. Para reordenar páginas, usar posiciones temporales **positivas y libres** dentro de la transacción y luego posiciones definitivas; la unicidad no es diferible. Rechazar posiciones temporales que desborden INTEGER.
 
-## Servicios y procesos pendientes
+## Responsabilidades de aplicación y procesos
 
-Las FK usan `RESTRICT` para evitar purgas accidentales de historial, medios y auditoría. Eliminar lógicamente usuarios, obras o capítulos no borra referencias ni documentos MongoDB. Permisos por rol/asignación, visibilidad pública, timezone IANA válida, publicación y semántica de finalización se implementarán en Services; los esquemas no los ejecutan.
+Las FK usan `RESTRICT` para evitar purgas accidentales de historial, medios y auditoría. El borrado lógico preserva historial y documentos MongoDB; la baja de una obra desvincula sus imágenes conforme a la política de catálogo, sin borrar sus archivos Blob. Services y Repositories implementan permisos, publicación, concurrencia y finalización; el schema por sí solo no ejecuta esas reglas.
 
-No hay FK ni transacción entre PostgreSQL, MongoDB y Blob. La consulta pública futura debe validar el destino SQL y su estado antes de exponer comunidad. No duplicar comentarios autoritativos para suplir una caída MongoDB.
+No hay FK ni transacción entre PostgreSQL, MongoDB y Blob. Comunidad verifica disponibilidad del destino SQL y decisiones COMMITTED antes de exponer comentarios nuevos. No duplica contenido para suplir una caída MongoDB.
 
-`MediaAsset` contiene metadatos, nunca buffers. `AVAILABLE/DELETING`, lotes, objetos y jobs preparan la compensación; ningún upload, reconciliador o worker se implementa en esta etapa. La confirmación del lote y la limpieza deben competir sobre su estado; solo se enlazan activos disponibles. El worker futuro debe verificar todas las referencias y coordinar bloqueo/transición antes de borrar Blob. Los jobs/objetos históricos también tienen FK: antes de purgar físicamente un `MediaAsset`, resolver o desvincular sus referencias de seguimiento conforme a una política auditada. No interpretar el CHECK de ruta como validación de seguridad de archivos.
+`MediaAsset` guarda metadatos, nunca buffers. El pipeline registra reservas/subidas/confirmación y solo enlaza activos disponibles. La política vigente conserva archivos abandonados, expirados o desvinculados; solo retira generaciones sustituidas de páginas tras commit y comprobación de todas las referencias, incluidos banners y miniaturas. Los scripts de cleanup no autorizan purgas ni un worker periódico. El reconciliador de comentarios es manual y acotado; no promueve huérfanos ni elimina documentos. No interpretar el CHECK de ruta como validación de seguridad de archivos.
 
 ## Recuperación y validación
 
-No se entrega un rollback que borre tablas o eventos. Si falla la migración transaccional, comprobar su rollback y el estado que registró Prisma antes de un reintento; un estado de migración fallida requiere resolución revisada, nunca una marca automática. Si ya se confirmaron datos de dominio, preferir corrección hacia adelante; una restauración requiere el backup y la ventana de recuperación acordados. Una versión anterior de la aplicación puede ignorar tablas nuevas, conservando datos y `Example`.
+No se entrega un rollback que borre tablas o eventos. Si falla una migración transaccional, comprobar su rollback y el estado registrado por Prisma antes de reintentar; no marcarla como aplicada para ocultar el fallo. Si ya se confirmaron datos, preferir corrección hacia adelante. Una restauración exige respaldo coordinado de SQL/Mongo, exclusión de productores y lectores, y ventana de recuperación acordada. El rollback de aplicación solo admite un artefacto explícitamente compatible con decisiones COMMITTED, marcadores de creación, filtros de todos los accesos y la política de imágenes. No volver a lectores, writers, jobs o scripts anteriores a ese protocolo; conservar esquema aditivo, historial y `Example`. El ensayo desechable está en `specs/001-admin-community-media/validation/deployment-rehearsal.md`.
 
 Validaciones locales pertinentes: format/validate/generate y build. La aceptación de motor requiere aplicar a una base PostgreSQL efímera, probar duplicados concurrentes, FK, puntuaciones inválidas, posiciones/números negativos, contexto anónimo inválido y deduplicación diaria; verificar que anónimos distintos sí cuentan y que renumerar conserva UUID. Si no se dispone de ese entorno, registrar esas pruebas como pendientes y no presentar el SQL generado como migración ejecutada.
 

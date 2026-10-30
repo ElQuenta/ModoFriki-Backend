@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "sourceName": "mf_admin_test_cutover_0d9a95ac6c3c40d5b6edf71dc925e238",
+  "restoredName": "mf_admin_test_restore_0d9a95ac6c3c40d5b6edf71dc925e238",
+  "pgPort": 62350,
+  "mongoPort": 62351,
+  "versions": {
+    "node": "v24.22.0",
+    "postgres": "17.11",
+    "mongo": "8.0.34"
+  },
+  "artifacts": {
+    "candidate": "af7ec26e0a7acd31e3117cb7b28b8b999d63ac555c883b552bdf187f6343905d",
+    "compatibleRollback": "e66c6fca63cf1bce5923f292057febe6f591a21f887ee748c05f1e8a2370c5eb"
+  },
+  "events": [
+    "exclusive-process-stop-before-backup",
+    "injected-migration-failure-rolled-back-and-recorded",
+    "sql-and-mongo-fixture-backup-restored",
+    "prisma-schema-drift-check-pass",
+    "migration-history-checksums-and-fixed-exemption",
+    "candidate-health-and-publication-filter-pass",
+    "compatible-rollback-health-and-publication-filter-pass",
+    "no-history-or-provisional-purge"
+  ],
+  "limitations": [
+    "Dedicated fixture backup only; not a production backup procedure",
+    "Supervisor owns all rehearsal processes; shared hosting exclusion still requires verification",
+    "Mongo backup covers the comments fixture collection and its indexes, not votes/reports",
+    "No Blob calls; referenced bytes remain outside SQL/Mongo backups"
+  ]
+}

@@ -120,6 +120,10 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P2 | DELETE | /api/comments/:id | user (autor o admin) | — | 204 |
 
 Las creaciones aceptan `Idempotency-Key` UUID opcional. Una misma clave y solicitud reproduce el resultado; reutilizarla con otra solicitud devuelve 409. Mientras SQL y Mongo confirman la publicación, el contenido queda oculto. Una sanción devuelve 403 sin cerrar sesión; un resultado no verificable devuelve 503. El cursor avanza por candidatos examinados, por lo que una página puede quedar vacía con `hasMore: true`; refrescar desde la primera página incorpora confirmaciones tardías.
+
+El reintento COMMITTED recupera el mismo identificador con su contenido vigente, incluso tras edición o borrado lógico; no repone el texto original ni vuelve a tocar el padre. `endsAt` de sanciones exige un instante UTC canónico `YYYY-MM-DDTHH:mm:ss.sssZ` real o `null`; una fecha inexistente o sin zona se rechaza. La evidencia opcional se resuelve mediante los mismos repositorios que verifican visibilidad de comentarios/reportes.
+
+`readingImages` pertenece al detalle GET de capítulo (`CatalogChapterDetail`); los listados y respuestas de mutación conservan `CatalogChapter`. La validación multimedia comprueba estructura, MIME y decodificación antes de Blob, secuencialmente, con un máximo de 40 millones de píxeles por imagen y salida de validación acotada. Se reutiliza Sharp, ya instalado para miniaturas.
 | P2 | PATCH / DELETE | /api/works/:id | admin | los mismos campos de POST, todos opcionales | `WorkDetail` / 204 |
 | P2 | DELETE | /api/chapters/:id | admin | — | 204 |
 | P2 | POST / PATCH / DELETE | /api/genres[/:id], /api/tags[/:id] | admin | `{ name }` | `Genre` / `Tag` / 204 |
