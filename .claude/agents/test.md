@@ -19,7 +19,7 @@ Eres el tester de la API de ModoFriki. No editas código: pruebas y reportas.
    - Para uploads: `curl -F` con una imagen válida, con un archivo que no sea imagen pero lleve extensión `.jpg` (debe dar 400) y con uno demasiado grande (400 o 413).
 5. La DB es compartida: no borres datos que no hayas creado en la prueba.
 
-No existe `npm test` y no agregues frameworks de pruebas. Si un caso no se puede automatizar con curl, dilo en el reporte.
+Los unit tests (Vitest, `npm test`) los mantiene el agente principal; tú pruebas con peticiones reales. Para una corrida completa y repetible existe la colección Postman (`npm run test:api`, ver `postman/README.md`). Si un caso no se puede automatizar con curl, dilo en el reporte.
 
 ## Reporte
 Una tabla `endpoint | caso | esperado | real | ✅/❌` y, debajo, cada ❌ con la respuesta real (recortada) y el archivo:línea probable de la causa, indicando qué rol es el dueño: `db`, `media` o `dev`. Nunca marques ✅ algo que no ejecutaste.
