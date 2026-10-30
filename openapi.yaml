@@ -10,7 +10,137 @@ servers:
   - url: /
 tags:
   - name: Health
+  - name: Admin
 paths:
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: Listar cuentas administrables
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: role, in: query, schema: { $ref: '#/components/schemas/Role' } }
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, SUSPENDED] } }
+        - { name: cursorCreatedAt, in: query, schema: { type: string, format: date-time } }
+        - { name: cursorId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: '#/components/responses/AdminUserPage' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+      description: cursorCreatedAt y cursorId deben enviarse juntos. Excluye cuentas eliminadas y datos privados.
+  /api/admin/users/{userId}:
+    get:
+      tags: [Admin]
+      summary: Obtener cuenta y token CAS actual
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+      responses:
+        "200": { $ref: '#/components/responses/AdminUserResult' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/admin/users/{userId}/role:
+    patch:
+      tags: [Admin]
+      summary: Cambiar rol BASIC o EDITOR
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [role, expectedUpdatedAt]
+              properties:
+                role: { type: string, enum: [BASIC, EDITOR] }
+                expectedUpdatedAt: { type: string, format: date-time, example: '2026-10-30T12:00:00.000Z' }
+      responses:
+        "200": { $ref: '#/components/responses/AdminUserResult' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+      description: La degradación a BASIC revoca y audita atómicamente todas las asignaciones activas.
+  /api/admin/users/{userId}/work-assignments:
+    get:
+      tags: [Admin]
+      summary: Listar asignaciones editoriales
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: includeRevoked, in: query, schema: { type: boolean, default: false } }
+        - { name: cursorCreatedAt, in: query, schema: { type: string, format: date-time } }
+        - { name: cursorId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: '#/components/responses/AdminAssignmentPage' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/admin/users/{userId}/work-assignments/{workId}:
+    put:
+      tags: [Admin]
+      summary: Asignar editor activo a una obra
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+        - $ref: '#/components/parameters/AdminWorkId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 0 }
+      responses:
+        "200": { $ref: '#/components/responses/AdminAssignmentResult' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/admin/users/{userId}/work-assignments/{workId}/revocation:
+    patch:
+      tags: [Admin]
+      summary: Revocar asignación editorial
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+        - $ref: '#/components/parameters/AdminWorkId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        "200": { $ref: '#/components/responses/AdminAssignmentResult' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
   /api/works/{workId}/visits:
     post:
       tags:
@@ -1878,6 +2008,16 @@ components:
         minimum: 1
         maximum: 50
         default: 20
+    AdminUserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AdminWorkId:
+      name: workId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
   schemas:
     ReadingEventInput:
       type: object
@@ -2344,6 +2484,57 @@ components:
             reviewedAt: { type: string, format: date-time, nullable: true }
             resolution: { type: string, nullable: true }
             updatedAt: { type: string, format: date-time }
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required: [id, username, role, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { type: string, enum: [ACTIVE, SUSPENDED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AdminAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, workId, editorId, assignedById, assignedAt, createdAt, revokedAt, version]
+      properties:
+        id: { type: string, format: uuid }
+        workId: { type: string, format: uuid }
+        editorId: { type: string, format: uuid }
+        assignedById: { type: string, format: uuid }
+        assignedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time, description: Cursor immutable de la primera asignación }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        version: { type: integer, minimum: 1 }
+    AdminCursor:
+      type: object
+      additionalProperties: false
+      required: [createdAt, id]
+      properties:
+        createdAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+    AdminUserPage:
+      type: object
+      additionalProperties: false
+      required: [items, hasMore, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AdminUser' } }
+        hasMore: { type: boolean }
+        nextCursor:
+          allOf: [{ $ref: '#/components/schemas/AdminCursor' }]
+          nullable: true
+    AdminAssignmentPage:
+      type: object
+      additionalProperties: false
+      required: [items, hasMore, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AdminAssignment' } }
+        hasMore: { type: boolean }
+        nextCursor:
+          allOf: [{ $ref: '#/components/schemas/AdminCursor' }]
+          nullable: true
     ErrorResponse:
       type: object
       required: [success, code, error]
@@ -2388,6 +2579,38 @@ components:
       type: string
       enum: [LEYENDO, POR_LEER, COMPLETADO, PAUSA]
   responses:
+    AdminUserResult:
+      description: Cuenta administrativa sin email, normalizados ni credenciales
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/AdminUser' } }
+    AdminUserPage:
+      description: Página por createdAt e id de cuentas no eliminadas
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/AdminUserPage' } }
+    AdminAssignmentResult:
+      description: Relación versionada; assignedAt cambia al reasignar y createdAt permanece estable
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/AdminAssignment' } }
+    AdminAssignmentPage:
+      description: Página por createdAt e id de asignaciones editoriales
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/AdminAssignmentPage' } }
     AuthResult:
       description: Identidad pública y JWT HS256 válido siete días
       content:
@@ -2485,3 +2708,14 @@ components:
             code: 409
             error:
               message: Email already in use
+    ServiceUnavailable:
+      description: Persistencia administrativa temporalmente no disponible
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            code: 503
+            error:
+              message: Administrative persistence unavailable

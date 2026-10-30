@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { integrationEnvironment } from "../../../test-support/integration-environment";
+import { createBarrier } from "../../__tests__/helpers/fixtures";
 import type { PrismaClient, User } from "../../generated/prisma/client";
 import type { AdminActor } from "../../types/admin.types";
 
@@ -10,7 +11,8 @@ import type { AdminActor } from "../../types/admin.types";
  */
 describe("AdminRepository real SQL US1", () => {
 	let prisma: PrismaClient;
-	let Repository: typeof import("../auth/admin.repository").AdminRepository;
+	let Repository: typeof import("../auth/admin.repository.js").AdminRepository;
+	let WorkRepository: typeof import("../catalog/work.repository.js").WorkRepository;
 	let repository: InstanceType<typeof Repository>;
 	let admin: User;
 	let editor: User;
@@ -24,8 +26,9 @@ describe("AdminRepository real SQL US1", () => {
 	beforeAll(async () => {
 		const env = integrationEnvironment(process.env);
 		if (process.env.NODE_ENV !== "test" || process.env.DATABASE_URL !== env.DATABASE_URL) throw new Error("Verified disposable SQL configuration is required");
-		prisma = (await import("../../config/database/postgres")).default;
-		Repository = (await import("../auth/admin.repository")).AdminRepository;
+		prisma = (await import("../../config/database/postgres.js")).default as unknown as PrismaClient;
+		Repository = (await import("../auth/admin.repository.js")).AdminRepository;
+		WorkRepository = (await import("../catalog/work.repository.js")).WorkRepository;
 		await prisma.$connect();
 		await prisma.$queryRaw`SELECT 1`;
 		repository = new Repository(prisma);
@@ -198,5 +201,102 @@ describe("AdminRepository real SQL US1", () => {
 		const failure = results.find(r => r.status === "rejected") as PromiseRejectedResult;
 		expect(failure.reason).toMatchObject({ statusCode: 409 });
 		expect((await events()).filter(e => e.action === "ROLE_CHANGED")).toHaveLength(1);
+	});
+
+	it("a winning downgrade blocks a catalog save and the late edit is rejected", async () => {
+		await repository.assign(actor, editor.id, workId, { expectedVersion: 0 });
+		const currentWork = await prisma.work.findUniqueOrThrow({ where: { id: workId } });
+		const barrier = createBarrier();
+		let pauseTarget = true;
+		const pausing = prisma.$extends({ query: { user: {
+			async update({ args, query }) {
+				if (pauseTarget && args.where.id === editor.id) {
+					pauseTarget = false;
+					await barrier.pause();
+				}
+				return query(args);
+			}
+		} } });
+		const downgrade = new Repository(pausing as unknown as PrismaClient)
+			.changeRole(actor, editor.id, { role: "BASIC", expectedUpdatedAt: editor.updatedAt });
+
+		await barrier.reached;
+		const save = new WorkRepository(prisma).save({
+			actor: { id: editor.id, role: "EDITOR" }, workId,
+			data: { title: "late edit must not commit" }, expectedUpdatedAt: currentWork.updatedAt
+		}).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error }));
+
+		try {
+			const deadline = Date.now() + 5_000;
+			let waiting = false;
+			while (!waiting && Date.now() < deadline) {
+				const [state] = await prisma.$queryRaw<Array<{ waiting: boolean }>>`
+					SELECT EXISTS (
+						SELECT 1 FROM pg_stat_activity
+						WHERE pid <> pg_backend_pid() AND datname = current_database()
+						AND wait_event_type = 'Lock' AND query LIKE '%FROM "User"%' AND query LIKE '%FOR UPDATE%'
+					) AS waiting`;
+				waiting = state?.waiting ?? false;
+				if (!waiting) await new Promise(resolve => setTimeout(resolve, 25));
+			}
+			expect(waiting).toBe(true);
+		} finally {
+			barrier.release();
+		}
+
+		await expect(downgrade).resolves.toMatchObject({ role: "BASIC" });
+		const saveResult = await save;
+		expect(saveResult.ok).toBe(false);
+		if (!saveResult.ok) expect(saveResult.error).toMatchObject({ statusCode: 403 });
+		expect((await prisma.work.findUniqueOrThrow({ where: { id: workId } })).title).toBe(currentWork.title);
+		expect(await prisma.workEditorAssignment.findFirst({ where: { editorId: editor.id, workId, revokedAt: null } })).toBeNull();
+	});
+
+	it("a winning revocation blocks a catalog save and the late edit is rejected", async () => {
+		await repository.assign(actor, editor.id, workId, { expectedVersion: 0 });
+		const currentWork = await prisma.work.findUniqueOrThrow({ where: { id: workId } });
+		const barrier = createBarrier();
+		let pauseTarget = true;
+		const pausing = prisma.$extends({ query: { workEditorAssignment: {
+			async update({ args, query }) {
+				if (pauseTarget) {
+					pauseTarget = false;
+					await barrier.pause();
+				}
+				return query(args);
+			}
+		} } });
+		const revocation = new Repository(pausing as unknown as PrismaClient)
+			.revoke(actor, editor.id, workId, { expectedVersion: 1 });
+
+		await barrier.reached;
+		const save = new WorkRepository(prisma).save({
+			actor: { id: editor.id, role: "EDITOR" }, workId,
+			data: { title: "revoked late edit must not commit" }, expectedUpdatedAt: currentWork.updatedAt
+		}).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error }));
+
+		try {
+			const deadline = Date.now() + 5_000;
+			let waiting = false;
+			while (!waiting && Date.now() < deadline) {
+				const [state] = await prisma.$queryRaw<Array<{ waiting: boolean }>>`
+					SELECT EXISTS (
+						SELECT 1 FROM pg_stat_activity
+						WHERE pid <> pg_backend_pid() AND datname = current_database()
+						AND wait_event_type = 'Lock' AND query LIKE '%FROM "User"%' AND query LIKE '%FOR UPDATE%'
+					) AS waiting`;
+				waiting = state?.waiting ?? false;
+				if (!waiting) await new Promise(resolve => setTimeout(resolve, 25));
+			}
+			expect(waiting).toBe(true);
+		} finally {
+			barrier.release();
+		}
+
+		await expect(revocation).resolves.toMatchObject({ version: 2, revokedAt: expect.any(Date) });
+		const saveResult = await save;
+		expect(saveResult.ok).toBe(false);
+		if (!saveResult.ok) expect(saveResult.error).toMatchObject({ statusCode: 403 });
+		expect((await prisma.work.findUniqueOrThrow({ where: { id: workId } })).title).toBe(currentWork.title);
 	});
 });

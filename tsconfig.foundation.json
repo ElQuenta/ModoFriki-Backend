@@ -7,7 +7,10 @@
   "include": [
     "src/types/__tests__/admin-contracts.test.ts",
     "src/repositories/__tests__/user-locks.test.ts",
+    "src/repositories/__tests__/admin.integration.test.ts",
     "src/middlewares/__tests__/admin-validation.test.ts",
+    "src/routes/__tests__/admin.routes.test.ts",
+    "src/services/__tests__/admin.service.test.ts",
     "src/__tests__/integration-environment.test.ts",
     "src/__tests__/test-helpers.test.ts",
     "src/__tests__/environment.integration.test.ts",

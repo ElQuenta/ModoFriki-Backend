@@ -241,3 +241,35 @@ interface RecommendedWorks { basis: "genres" | "popular"; items: PopularWork[] }
 | P1 | GET | /api/works/recommended | —, Bearer opcional validado | `limit?` (default 12, máximo 50) | `RecommendedWorks` |
 
 Con sesión se toman los géneros de las obras favoritas del usuario (el id sale del token; no se acepta `userId`). Se excluyen sus favoritos y se ordenan las obras PUBLISHED y no eliminadas por cantidad de géneros coincidentes descendente y después como `popular` con `period=all` (`visits` total, `publishedAt`, `id`). `basis` es `"genres"` si el usuario tiene al menos un favorito con géneros; si no, o sin sesión, `"popular"` y el orden es el de `popular`. Errores: 400 query inválida, 401 token inválido.
+
+## Administración de roles y asignaciones (P1)
+
+Todas las rutas requieren Bearer de una cuenta `ADMIN` activa. La autorización se vuelve a comprobar en PostgreSQL dentro de las mutaciones. No existen rutas administrativas para crear, eliminar o promover cuentas `ADMIN`.
+
+```ts
+interface AdminUser {
+  id: string; username: string; role: "BASIC" | "EDITOR" | "ADMIN";
+  status: "ACTIVE" | "SUSPENDED"; createdAt: string; updatedAt: string;
+}
+interface WorkEditorAssignment {
+  id: string; workId: string; editorId: string; assignedById: string;
+  assignedAt: string; createdAt: string; revokedAt: string | null; version: number;
+}
+interface AdminCursorPage<T> {
+  items: T[]; hasMore: boolean;
+  nextCursor: { createdAt: string; id: string } | null;
+}
+```
+
+| Método | Ruta | Query/body | `data` |
+|---|---|---|---|
+| GET | `/api/admin/users` | `limit?` 1..100 (20), `role?`, `status?`, `cursorCreatedAt?` + `cursorId?` | `AdminCursorPage<AdminUser>` |
+| GET | `/api/admin/users/:userId` | — | `AdminUser` |
+| PATCH | `/api/admin/users/:userId/role` | `{ role: "BASIC" | "EDITOR", expectedUpdatedAt: ISO UTC con milisegundos }` | `AdminUser` |
+| GET | `/api/admin/users/:userId/work-assignments` | `limit?`, `includeRevoked?` (false), cursor completo | `AdminCursorPage<WorkEditorAssignment>` |
+| PUT | `/api/admin/users/:userId/work-assignments/:workId` | `{ expectedVersion: integer >= 0 }` | `WorkEditorAssignment` |
+| PATCH | `/api/admin/users/:userId/work-assignments/:workId/revocation` | `{ expectedVersion: integer >= 1 }` | `WorkEditorAssignment` |
+
+`expectedUpdatedAt` y `expectedVersion` son precondiciones CAS. Un valor anterior devuelve 409 incluso cuando el estado solicitado ya coincide. Para refrescar el CAS de rol se usa el GET de detalle; para relaciones se vuelve a listar. La primera asignación usa versión esperada 0 y devuelve versión 1. Revocar o reasignar incrementa la versión; `createdAt` conserva la posición histórica del cursor y `assignedAt` registra la asignación más reciente. Degradar un editor a BASIC revoca atómicamente todas sus relaciones activas y genera auditoría.
+
+Errores: 400 entrada desconocida, cursor incompleto o formato inválido; 401 autenticación ausente/inválida; 403 cuenta no ADMIN activa, intento de modificar ADMIN o editor no apto; 404 usuario, obra o relación inexistente; 409 precondición obsoleta/conflicto concurrente; 503 persistencia administrativa no disponible. Las respuestas nunca incluyen email, normalizados ni hash de contraseña.

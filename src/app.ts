@@ -8,6 +8,7 @@ import config from "./config/env";
 import { ErrorResponseHandler } from "./handlers/error.handler";
 import { SuccessResponseHandler } from "./handlers/success.handler";
 import loggerMiddleware from "./middlewares/logger.middleware";
+import adminRouter from "./routes/admin.routes";
 import authRouter from "./routes/auth.routes";
 import communityRouter from "./routes/community.routes";
 import discoveryRouter from "./routes/discovery.routes";
@@ -40,6 +41,7 @@ app.get("/health", (_request, response) => {
 
 app.use("/api/docs", serve, setup(openApiSpec));
 app.use("/api/auth", authRouter);
+app.use("/api", adminRouter);
 app.use("/api", communityRouter);
 app.use("/api", discoveryRouter);
 app.use("/api", catalogRouter);
