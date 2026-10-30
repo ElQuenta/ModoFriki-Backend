@@ -1190,10 +1190,13 @@ paths:
                 cover: &a9
                   type: string
                   format: binary
+                banner: *a9
                 inpagecover: *a9
               required: *a10
             encoding:
               cover:
+                contentType: image/jpeg, image/png, image/webp
+              banner:
                 contentType: image/jpeg, image/png, image/webp
               inpagecover:
                 contentType: image/jpeg, image/png, image/webp
@@ -1308,10 +1311,13 @@ paths:
                 genreIds: *a8
                 expectedUpdatedAt: *a11
                 cover: *a9
+                banner: *a9
                 inpagecover: *a9
               required: *a12
             encoding:
               cover:
+                contentType: image/jpeg, image/png, image/webp
+              banner:
                 contentType: image/jpeg, image/png, image/webp
               inpagecover:
                 contentType: image/jpeg, image/png, image/webp
@@ -1382,10 +1388,13 @@ paths:
                 genreIds: *a8
                 expectedUpdatedAt: *a11
                 cover: *a9
+                banner: *a9
                 inpagecover: *a9
               required: *a13
             encoding:
               cover:
+                contentType: image/jpeg, image/png, image/webp
+              banner:
                 contentType: image/jpeg, image/png, image/webp
               inpagecover:
                 contentType: image/jpeg, image/png, image/webp
@@ -2235,7 +2244,7 @@ components:
     CatalogWork:
       type: object
       description: Obra del catálogo. Nunca incluye campos internos (createdById, updatedById, deletedAt, *AssetId, pathname, sizeBytes).
-      required: [id, title, slug, synopsis, typeId, publicationStatus, releaseStatus, createdAt, updatedAt, publishedAt, visitsCount, type, coverAsset, coverThumbAsset, incapBannerAsset, alternativeTitles, genres]
+      required: [id, title, slug, synopsis, typeId, publicationStatus, releaseStatus, createdAt, updatedAt, publishedAt, visitsCount, type, coverAsset, bannerAsset, coverThumbAsset, incapBannerAsset, alternativeTitles, genres]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -2250,6 +2259,7 @@ components:
         visitsCount: { type: integer }
         type: { $ref: "#/components/schemas/Taxonomy" }
         coverAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true }
+        bannerAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true, description: "Banner de ficha; no se incluye en la secuencia de lectura." }
         coverThumbAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true, description: "Miniatura WebP de 300 px; null hasta que corre media:thumbnails." }
         incapBannerAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true }
         alternativeTitles:
@@ -2282,7 +2292,7 @@ components:
         asset: { $ref: "#/components/schemas/CatalogMediaAsset" }
     CatalogChapter:
       type: object
-      required: [id, workId, number, title, kind, status, version, createdAt, updatedAt, publishedAt, pages]
+      required: [id, workId, number, title, kind, status, version, createdAt, updatedAt, publishedAt, pages, readingImages]
       properties:
         id: { type: string, format: uuid }
         workId: { type: string, format: uuid }
@@ -2295,6 +2305,17 @@ components:
         updatedAt: { type: string, format: date-time }
         publishedAt: { type: string, format: date-time, nullable: true }
         pages: { type: array, items: { $ref: "#/components/schemas/CatalogPage" } }
+        readingImages:
+          type: array
+          description: "Apertura compartida opcional seguida por las páginas editoriales; pages no se modifica."
+          items:
+            type: object
+            required: [kind, asset, pageId, position]
+            properties:
+              kind: { type: string, enum: [WORK_OPENING, PAGE] }
+              asset: { $ref: "#/components/schemas/CatalogMediaAsset" }
+              pageId: { type: string, format: uuid, nullable: true }
+              position: { type: integer, minimum: 1, nullable: true }
     HealthStatus:
       type: object
       required: [status, postgres, mongo]

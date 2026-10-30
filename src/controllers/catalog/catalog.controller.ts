@@ -8,7 +8,7 @@ import { createLogger } from "../../utils/logger";
 const logger = createLogger("CatalogController");
 // Prisma Decimal serializes itself to string; BigInt metadata must also be JSON safe.
 // Internal bookkeeping (actors, soft delete, Blob paths and asset FKs) never leaves the API; the service still sees the full record.
-const internalCatalogKeys = new Set(["createdById", "updatedById", "deletedAt", "pathname", "sizeBytes", "coverAssetId", "coverThumbAssetId", "incapBannerAssetId", "assetId"]);
+const internalCatalogKeys = new Set(["createdById", "updatedById", "deletedAt", "pathname", "sizeBytes", "coverAssetId", "bannerAssetId", "coverThumbAssetId", "incapBannerAssetId", "legacyPublicationImagesExempt", "assetId", "work"]);
 export const catalogDto = (value: unknown): unknown => JSON.parse(JSON.stringify(value, (key, item) => internalCatalogKeys.has(key) ? undefined : typeof item === "bigint" ? item.toString() : item));
 
 export class CatalogController {
