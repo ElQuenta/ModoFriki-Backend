@@ -28,6 +28,22 @@ enum AdminAuditAction {
   ROLE_CHANGED
   EDITOR_ASSIGNED
   EDITOR_REVOKED
+  COMMENT_SANCTION_IMPOSED
+  COMMENT_SANCTION_REVOKED
+}
+
+enum CommentCreationState {
+  PREPARED
+  COMMITTED
+  REJECTED
+}
+
+enum CommentRejectionCode {
+  SANCTIONED
+  ACCOUNT_UNAVAILABLE
+  EXPIRED
+  CANCELLED
+  TARGET_UNAVAILABLE
 }
 
 enum PublicationStatus {
@@ -101,6 +117,10 @@ model User {
   chapterReads      UserChapterRead[]
   readEvents        ChapterReadEvent[]
   uploadBatches     UploadBatch[]
+  commentSanctions  CommentSanction[]       @relation("SanctionSubject")
+  sanctionsImposed CommentSanction[]       @relation("SanctionImposer")
+  sanctionsRevoked CommentSanction[]       @relation("SanctionRevoker")
+  commentDecisions CommentCreationDecision[]
 }
 
 model WorkEditorAssignment {
@@ -133,10 +153,48 @@ model AdminAuditEvent {
   actor         User             @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
   subjectUser   User?            @relation("AuditSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
   work          Work?            @relation(fields: [workId], references: [id], onDelete: Restrict)
+  sanctionId    String?          @db.Uuid
+  sanction      CommentSanction? @relation(fields: [sanctionId], references: [id], onDelete: Restrict)
 
   @@index([actorId, occurredAt])
   @@index([subjectUserId, occurredAt])
   @@index([workId, occurredAt])
+  @@index([sanctionId, occurredAt])
+}
+
+model CommentSanction {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  imposedById   String    @db.Uuid
+  reason        String    @db.VarChar(2000)
+  startsAt      DateTime  @db.Timestamptz(3)
+  endsAt        DateTime? @db.Timestamptz(3)
+  revokedAt     DateTime? @db.Timestamptz(3)
+  revokedById   String?   @db.Uuid
+  closedAt      DateTime? @db.Timestamptz(3)
+  evidenceType  String?   @db.VarChar(7)
+  evidenceId    String?   @db.Uuid
+  user          User      @relation("SanctionSubject", fields: [userId], references: [id], onDelete: Restrict)
+  imposedBy     User      @relation("SanctionImposer", fields: [imposedById], references: [id], onDelete: Restrict)
+  revokedBy     User?     @relation("SanctionRevoker", fields: [revokedById], references: [id], onDelete: Restrict)
+  auditEvents   AdminAuditEvent[]
+
+  @@index([userId, startsAt(sort: Desc), id(sort: Desc)])
+}
+
+model CommentCreationDecision {
+  id                 String                 @id @db.Uuid
+  authorId           String                 @db.Uuid
+  state              CommentCreationState
+  requestFingerprint String                 @db.Char(64)
+  preparedAt         DateTime               @db.Timestamptz(3)
+  expiresAt          DateTime               @db.Timestamptz(3)
+  decidedAt          DateTime?              @db.Timestamptz(3)
+  rejectionCode      CommentRejectionCode?
+  author             User                   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([authorId, state, id])
+  @@index([state, expiresAt, id])
 }
 
 model WorkType {
