@@ -2125,6 +2125,42 @@ paths:
           description: Contenido de imagen inv?lido
         "503":
           description: Blob no configurado
+  /api/auth/me/comment-restriction:
+    get:
+      tags: [Auth]
+      summary: Restricción vigente del usuario autenticado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Restricción propia; no expone actor, evidencia ni historial }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/admin/users/{userId}/comment-sanctions:
+    get:
+      tags: [Admin]
+      summary: Historial de restricciones de comentarios
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Restricción actual e historial paginado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin]
+      summary: Imponer una restricción de comentarios
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: Restricción creada }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/admin/users/{userId}/comment-sanctions/{sanctionId}/revocation:
+    put:
+      tags: [Admin]
+      summary: Revocar una restricción concreta
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Restricción revocada o replay idempotente }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     bearerAuth:

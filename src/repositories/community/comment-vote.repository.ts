@@ -4,6 +4,7 @@ import AppError from "../../utils/AppError";
 import type { CommentVoteRecord } from "../../models/community/community.types";
 import { communityDependencies, communityTransaction, filterAccessibleBatch, persistenceOperation, requireAccessibleComment, touchActiveComment, type CommunityDependencies } from "./community.persistence";
 import { uuid } from "./community.validation";
+import { commentCreationRepository } from "./comment-creation.repository";
 
 const logger = createLogger("CommentVoteRepository");
 
@@ -18,7 +19,7 @@ export class CommentVoteRepository {
 	private readonly dependencies: CommunityDependencies;
 
 	constructor(options: Partial<CommunityDependencies> = {}) {
-		this.dependencies = communityDependencies(options);
+		this.dependencies = communityDependencies({ ...options, decisions: options.decisions ?? commentCreationRepository });
 	}
 
 	async setVote(input: { commentId: string; userId: string; value: -1 | 1 }): Promise<CommentVoteRecord> {

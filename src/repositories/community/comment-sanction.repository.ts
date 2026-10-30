@@ -33,7 +33,10 @@ export class CommentSanctionRepository implements SanctionRepositoryContract {
 		return user;
 	}
 	private async closeExpired(tx: Prisma.TransactionClient, userId: string, now: Date) {
-		await tx.$executeRaw`UPDATE "CommentSanction" SET "closedAt" = "endsAt" WHERE "userId" = ${userId}::uuid AND "closedAt" IS NULL AND "revokedAt" IS NULL AND "endsAt" IS NOT NULL AND "endsAt" <= ${now}`;
+		const expired = await tx.commentSanction.findMany({ where: { userId, closedAt: null, revokedAt: null, endsAt: { not: null, lte: now } }, select: { id: true, endsAt: true } });
+		for (const row of expired) {
+			if (row.endsAt) await tx.commentSanction.updateMany({ where: { id: row.id, closedAt: null }, data: { closedAt: row.endsAt } });
+		}
 	}
 	async list(actor: AdminActor, userId: string, input: { limit?: number; cursor?: { createdAt: Date; id: string } }): Promise<SanctionHistoryRecord> {
 		try { return await this.client.$transaction(async tx => {
@@ -55,9 +58,12 @@ export class CommentSanctionRepository implements SanctionRepositoryContract {
 			await lockUsers(tx, [actor.id, userId]); await this.requireActor(tx, actor); await this.requireSubject(tx, userId);
 			if (evidence && evidence.authorId !== userId) throw new AppError("Evidence does not belong to the user", 400);
 			const reason = input.reason.trim(); if (!reason || reason.length > 2000) throw new AppError("Invalid sanction reason", 400);
-			const now = await readSqlTime(tx); await this.closeExpired(tx, userId, now);
+			let now = await readSqlTime(tx); await this.closeExpired(tx, userId, now); now = await readSqlTime(tx);
 			if (input.endsAt && input.endsAt <= now) throw new AppError("Sanction end must be in the future", 400);
-			if (await tx.commentSanction.findFirst({ where: { userId, closedAt: null } })) throw new AppError("User already has an active comment sanction", 409);
+			const open = await tx.commentSanction.findFirst({ where: { userId, closedAt: null }, select: { id: true, endsAt: true } });
+			if (open?.endsAt && open.endsAt <= now) {
+				await tx.commentSanction.updateMany({ where: { id: open.id, closedAt: null }, data: { closedAt: open.endsAt } });
+			} else if (open) throw new AppError("User already has an active comment sanction", 409);
 			const row = await tx.commentSanction.create({ data: { userId, imposedById: actor.id, reason, startsAt: now, endsAt: input.endsAt,
 				...(evidence ? { evidenceType: evidence.reference.type, evidenceId: evidence.reference.id } : {}) }, select });
 			await tx.commentCreationDecision.updateMany({ where: { authorId: userId, state: "PREPARED" }, data: { state: "REJECTED", decidedAt: now, rejectionCode: "SANCTIONED" } });
@@ -68,7 +74,7 @@ export class CommentSanctionRepository implements SanctionRepositoryContract {
 	async revoke(actor: AdminActor, userId: string, sanctionId: string): Promise<SanctionRecord> {
 		try { return await this.client.$transaction(async tx => {
 			await lockUsers(tx, [actor.id, userId]); await this.requireActor(tx, actor); await this.requireSubject(tx, userId);
-			const now = await readSqlTime(tx); await this.closeExpired(tx, userId, now);
+			let now = await readSqlTime(tx); await this.closeExpired(tx, userId, now); now = await readSqlTime(tx);
 			const current = await tx.commentSanction.findFirst({ where: { id: sanctionId, userId }, select }); if (!current) throw new AppError("Comment sanction not found", 404);
 			if (current.closedAt) return map(current);
 			const row = await tx.commentSanction.update({ where: { id: sanctionId }, data: { revokedAt: now, revokedById: actor.id, closedAt: now }, select });

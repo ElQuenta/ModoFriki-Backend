@@ -23,7 +23,8 @@ export class CommentCreationRepository implements CommentCreationRepositoryContr
 		if (existing.authorId !== actor.id || existing.requestFingerprint !== input.requestFingerprint) throw new AppError("Idempotency key was used for another request", 409);
 	}
 	private async closeExpiredSanction(tx: Prisma.TransactionClient, userId: string, now: Date) {
-		await tx.$executeRaw`UPDATE "CommentSanction" SET "closedAt" = "endsAt" WHERE "userId" = ${userId}::uuid AND "closedAt" IS NULL AND "revokedAt" IS NULL AND "endsAt" IS NOT NULL AND "endsAt" <= ${now}`;
+		const expired = await tx.commentSanction.findMany({ where: { userId, closedAt: null, revokedAt: null, endsAt: { not: null, lte: now } }, select: { id: true, endsAt: true } });
+		for (const row of expired) if (row.endsAt) await tx.commentSanction.updateMany({ where: { id: row.id, closedAt: null }, data: { closedAt: row.endsAt } });
 	}
 	private async reject(tx: Prisma.TransactionClient, id: string, now: Date, rejectionCode: "SANCTIONED" | "ACCOUNT_UNAVAILABLE" | "EXPIRED" | "TARGET_UNAVAILABLE") {
 		await tx.commentCreationDecision.updateMany({ where: { id, state: "PREPARED" }, data: { state: "REJECTED", decidedAt: now, rejectionCode } });

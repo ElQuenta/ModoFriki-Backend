@@ -26,7 +26,10 @@ export class CommunityController {
 	create: RequestHandler = async (req, res) => {
 		try {
 			logger.debug("Handling comment creation");
-			CreatedResponseHandler(res, await this.service.create(req.body, this.actor(res)));
+			const raw = req.rawHeaders.filter((value, index) => index % 2 === 0 && value.toLowerCase() === "idempotency-key");
+			const header = req.header("idempotency-key");
+			if (raw.length > 1 || (header !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(header))) throw new AppError("Invalid Idempotency-Key", 400);
+			CreatedResponseHandler(res, await this.service.create(req.body, this.actor(res), header?.toLowerCase()));
 		} catch (error) { logger.error("Unable to create comment"); ErrorResponseHandler(res, error); }
 	};
 	edit: RequestHandler = async (req, res) => {

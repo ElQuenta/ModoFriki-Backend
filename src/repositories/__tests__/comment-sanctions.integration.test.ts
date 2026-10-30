@@ -63,9 +63,10 @@ describe("comment sanctions and decision serialization", () => {
 	});
 
 	it("closes exact expiry lazily and permits a replacement at the boundary", async () => {
-		const endsAt = new Date(Date.now() + 150);
+		const endsAt = new Date(Date.now() + 60_000);
 		const first = await sanctions.impose({ id: adminId, role: "ADMIN" }, userId, { reason: "short", endsAt }, null);
-		await new Promise(resolve => setTimeout(resolve, 200));
+		// Set an exact past SQL value; wall-clock sleeps make this boundary test flaky on busy CI workers.
+		await prisma.commentSanction.update({ where: { id: first.id }, data: { endsAt: new Date(Date.now() - 1) } });
 		const second = await sanctions.impose({ id: adminId, role: "ADMIN" }, userId, { reason: "replacement", endsAt: null }, null);
 		const closed = await prisma.commentSanction.findUniqueOrThrow({ where: { id: first.id } });
 		expect(+closed.closedAt).toBe(+closed.endsAt); expect(second.id).not.toBe(first.id);

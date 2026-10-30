@@ -5,6 +5,7 @@ import { COMMENT_TARGET_TYPES, type CommentRecord, type CommentTargetType } from
 import { communityDependencies, communityTransaction, filterAccessibleBatch, findAccessibleById, persistenceOperation, requireAccessibleComment, touchActiveComment, type CommunityDependencies } from "./community.persistence";
 import { cursorFilter, enumValue, pageOptions, revision, text, uuid, type CommunityPage, type CommunityPageOptions } from "./community.validation";
 import type { ValidatedSanctionEvidence } from "../../types/sanctions.types";
+import { commentCreationRepository } from "./comment-creation.repository";
 
 const logger = createLogger("CommentRepository");
 
@@ -29,7 +30,7 @@ export class CommentRepository {
 	private readonly dependencies: CommunityDependencies;
 
 	constructor(options: Partial<CommunityDependencies> = {}) {
-		this.dependencies = communityDependencies(options);
+		this.dependencies = communityDependencies({ ...options, decisions: options.decisions ?? commentCreationRepository });
 	}
 
 	async createRoot(input: CreateRootCommentInput): Promise<CommentRecord> {

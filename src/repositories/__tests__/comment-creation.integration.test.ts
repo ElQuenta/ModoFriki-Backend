@@ -34,6 +34,10 @@ describe("durable comment creation protocol", () => {
 		const collection = mongoose.connection.collection("comments");
 		for (const id of mongoIds) await collection.deleteOne({ _id: id });
 		mongoIds.clear();
+		await prisma.$executeRawUnsafe('DELETE FROM "AdminAuditEvent" WHERE "actorId" = $1 OR "subjectUserId" = $1', userId);
+		await prisma.$executeRawUnsafe('DELETE FROM "AdminAuditEvent" WHERE "actorId" = $1 OR "subjectUserId" = $1', adminId);
+		await prisma.$executeRawUnsafe('DELETE FROM "CommentSanction" WHERE "userId" = $1 OR "imposedById" = $1 OR "revokedById" = $1', userId);
+		await prisma.$executeRawUnsafe('DELETE FROM "CommentSanction" WHERE "userId" = $1 OR "imposedById" = $1 OR "revokedById" = $1', adminId);
 		for (const id of sqlIds) await prisma.$executeRawUnsafe('DELETE FROM "CommentCreationDecision" WHERE "id" = $1 OR "authorId" = $1', id);
 		await prisma.chapter.deleteMany({ where: { id: chapterId } }); await prisma.work.deleteMany({ where: { id: workId } }); await prisma.workType.deleteMany({ where: { id: typeId } });
 		await prisma.user.deleteMany({ where: { id: { in: [userId, adminId] } } }); sqlIds.clear();
@@ -84,7 +88,7 @@ describe("durable comment creation protocol", () => {
 
 	it("does not publish a timed-out PREPARED and never resurrects EXPIRED", async () => {
 		const id = randomUUID(), hash = fingerprint("expired"); sqlIds.add(id);
-		await prisma.$executeRawUnsafe('INSERT INTO "CommentCreationDecision" ("id","authorId","state","requestFingerprint","preparedAt","expiresAt") VALUES ($1,$2,\'PREPARED\',$3,clock_timestamp()-interval \'61 seconds\',clock_timestamp()-interval \'1 second\')', id, userId, hash);
+		await prisma.$executeRawUnsafe('WITH clock AS (SELECT clock_timestamp()::timestamptz(3) AS now) INSERT INTO "CommentCreationDecision" ("id","authorId","state","requestFingerprint","preparedAt","expiresAt") SELECT $1,$2,\'PREPARED\',$3,now-interval \'61 seconds\',now-interval \'1 second\' FROM clock', id, userId, hash);
 		await stageRoot(id);
 		await decisions.rejectExpired(userId, [id]);
 		await expect(decisions.resolve({ id: userId }, { operationId: id, requestFingerprint: hash })).resolves.toMatchObject({ state: "REJECTED", rejectionCode: "EXPIRED" });

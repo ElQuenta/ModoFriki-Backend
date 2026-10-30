@@ -19,6 +19,7 @@ import communityRouter from "./routes/community.routes";
 import discoveryRouter from "./routes/discovery.routes";
 import catalogRouter from "./routes/catalog.routes";
 import readingRouter from "./routes/reading.routes";
+import commentSanctionsRouter from "./routes/comment-sanctions.routes";
 import AppError from "./utils/AppError";
 import { createLogger } from "./utils/logger";
 
@@ -55,6 +56,7 @@ app.use("/api", apiRateLimit);
 app.use(["/api/auth/login", "/api/auth/register"], authRateLimit);
 app.use("/api/auth", authRouter);
 app.use("/api", adminRouter);
+app.use("/api", commentSanctionsRouter);
 app.use("/api", communityRouter);
 app.use("/api", discoveryRouter);
 app.use("/api", catalogRouter);

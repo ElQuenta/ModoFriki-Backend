@@ -91,6 +91,7 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P1 | POST | /api/auth/register | — | `{ username, email, password, timezone? }` | `AuthResult` (201) |
 | P1 | POST | /api/auth/login | — | `{ email, password }` | `AuthResult` |
 | P1 | GET | /api/auth/me | user | — | `User` |
+| P1 | GET | /api/auth/me/comment-restriction | user | — | restricción propia sin actor, evidencia ni historial |
 | P1 | GET | /api/genres | — | — | `Genre[]` |
 | P1 | GET | /api/tags | — | — | `Tag[]` |
 | P1 | GET | /api/works | — | `search?, type?, status?, genre?` (slug), `tag?` (slug), `sort?=latest\|popular`, `page, limit` | `Paginated<WorkSummary>` |
@@ -103,6 +104,8 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P1 | DELETE | /api/favorites/:workId | user | — | 204 |
 | P1 | GET | /api/comments | —, Bearer opcional validado | Un selector: `targetType,targetId` o `parentCommentId` o `rootCommentId`; cursor, limit | `CursorPage<Comment>` |
 | P1 | POST | /api/comments | user | Raíz `{ targetType, targetId, bodyMarkdown }` o respuesta `{ parentCommentId, bodyMarkdown }` | `Comment` (201) |
+| P1 | GET/POST | /api/admin/users/:userId/comment-sanctions | ADMIN | historial/cursor o `{ reason, endsAt, evidence? }` | historial / sanción (201) |
+| P1 | PUT | /api/admin/users/:userId/comment-sanctions/:sanctionId/revocation | ADMIN | `{}` | sanción revocada |
 | P1 | GET | /api/users/:id | — | — | `PublicUser` |
 | P1 | POST | /api/works | admin | multipart: `cover` (imagen ≤ 5 MB), `title, synopsis, type, status, author, artist?, genreIds[], tagIds[]` | `WorkDetail` (201) |
 | P1 | POST | /api/works/:workId/chapters | admin | multipart: `pages[]` (imágenes en orden, ≤ 5 MB c/u), `number, title?` | `ChapterDetail` (201) |
@@ -115,6 +118,8 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P1 | GET | /api/comment-reports | ADMIN | `status?`, cursor, limit | `CursorPage<ModerationReport>` |
 | P1 | PATCH | /api/comment-reports/:id | ADMIN | `{ status: "RESOLVED" \| "DISMISSED", resolution }` | `ModerationReport` |
 | P2 | DELETE | /api/comments/:id | user (autor o admin) | — | 204 |
+
+Las creaciones aceptan `Idempotency-Key` UUID opcional. Una misma clave y solicitud reproduce el resultado; reutilizarla con otra solicitud devuelve 409. Mientras SQL y Mongo confirman la publicación, el contenido queda oculto. Una sanción devuelve 403 sin cerrar sesión; un resultado no verificable devuelve 503. El cursor avanza por candidatos examinados, por lo que una página puede quedar vacía con `hasMore: true`; refrescar desde la primera página incorpora confirmaciones tardías.
 | P2 | PATCH / DELETE | /api/works/:id | admin | los mismos campos de POST, todos opcionales | `WorkDetail` / 204 |
 | P2 | DELETE | /api/chapters/:id | admin | — | 204 |
 | P2 | POST / PATCH / DELETE | /api/genres[/:id], /api/tags[/:id] | admin | `{ name }` | `Genre` / `Tag` / 204 |
