@@ -25,3 +25,5 @@ Cada incremento entrega archivos, contratos, resultados reales, riesgos, rama y 
 ## Entrega por fase autorizada
 
 El 2026-10-30 el usuario solicitó commits y un PR hacia `dev` por cada avance de fase. Al completar cada fase: ejecutar validaciones correspondientes, registrar resultados, crear commit en rama feature y publicar PR con base `dev`, alcance y limitaciones explícitos. La fase 1 se entrega desde `feature/admin-community-media`; para las siguientes fases usar ramas separadas y evitar incluir otra vez cambios de un PR anterior. Si el PR previo sigue abierto, documentar la dependencia y revisar el diff contra `dev` antes de publicar el siguiente. Abrir un PR no autoriza fusionarlo automáticamente ni integrar en QA/main.
+
+Fase 2: `feature/admin-community-media-phase-2` desde `dev` en `6d97d7c` (PR #7 ya integrado). Coordinador conserva propiedad de todos los archivos T005–T010; reviewer `foundation_review` solo lectura, sin implementación paralela. [foundation.md](foundation.md) registra archivos, validaciones, hallazgo corregido y límites.
