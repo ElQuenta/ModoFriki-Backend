@@ -23,6 +23,7 @@ export interface PrepareCommentInput { operationId: string; requestFingerprint: 
 /** Derived from durable Mongo staging; never constructed directly from an HTTP body. */
 export interface StagedCommentTarget { targetType: CommentTargetType; targetId: string; workId: string }
 export interface CommentDecisionVisibility { id: string; authorId: string; state: CommentCreationState }
+export type FinalizeCommentResult = CommentCreationDecision;
 export interface CommentCreationRepositoryContract {
 	prepare(author: CommentCreationActor, input: PrepareCommentInput): Promise<CommentCreationDecision>;
 	/** REJECTED is returned after commit; throwing inside SQL would undo the decision. */

@@ -21,8 +21,12 @@ export async function lockUsers(tx: Prisma.TransactionClient, userIds: readonly 
 }
 
 export async function readSqlTime(tx: Prisma.TransactionClient): Promise<Date> {
-	const rows = await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp()::timestamptz(3) AS "now"`;
-	const now = rows[0]?.now;
-	if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new AppError("Database clock unavailable", 503);
+	// Prisma's pg adapter can decode timestamptz using the server's local offset. Format an
+	// explicit UTC instant at the SQL boundary so lock/expiry comparisons stay authoritative.
+	const rows = await tx.$queryRaw<{ nowText?: string; now?: Date }[]>`SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "nowText"`;
+	const raw = rows[0];
+	// Keep the transaction helper mockable without accepting an invalid provider value.
+	const now = raw?.now instanceof Date ? raw.now : new Date(raw?.nowText ?? "");
+	if (!Number.isFinite(now.getTime())) throw new AppError("Database clock unavailable", 503);
 	return now;
 }
