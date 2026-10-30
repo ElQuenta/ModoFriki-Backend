@@ -19,9 +19,10 @@ afterAll(async () => {
 });
 
 describe("migraciones", () => {
-	it("se aplican todas desde cero sin errores", async () => {
+	// Local CLI binary (no npx resolution) and a wider timeout: the CLI start-up time varies a lot between machines.
+	it("se aplican todas desde cero sin errores", { timeout: 180_000 }, async () => {
 		await prisma.$executeRawUnsafe(`CREATE DATABASE "${name}"`);
-		execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: freshUrl }, stdio: "pipe" });
+		execSync(`"${process.execPath}" node_modules/prisma/build/index.js migrate deploy`, { env: { ...process.env, DATABASE_URL: freshUrl }, stdio: "pipe" });
 		fresh = new PrismaClient({ adapter: new PrismaPg({ connectionString: freshUrl }) });
 		const [{ applied }] = await fresh.$queryRaw<{ applied: number }[]>`SELECT COUNT(*)::int AS applied FROM "_prisma_migrations" WHERE "finished_at" IS NOT NULL AND "rolled_back_at" IS NULL`;
 		expect(applied).toBe(migrations);

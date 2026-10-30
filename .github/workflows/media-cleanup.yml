@@ -1,0 +1,38 @@
+name: Limpieza de imágenes huérfanas
+
+# Los cron de GitHub solo corren desde la rama por defecto (main).
+# Por seguridad, la corrida programada es dry-run salvo que la variable del repo
+# MEDIA_CLEANUP_APPLY sea "true". A mano se puede elegir apply.
+on:
+  schedule:
+    - cron: "0 7 * * *" # 03:00 en Bolivia
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Borrar de verdad (si no, solo lista)"
+        type: boolean
+        default: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+      # env.ts los exige al importar, pero la limpieza no usa Mongo ni JWT.
+      MONGODB_URI: mongodb://unused:27017/unused
+      JWT_SECRET: unused-in-media-cleanup-unused-in-media-cleanup
+      APPLY: ${{ (github.event_name == 'workflow_dispatch' && inputs.apply) || vars.MEDIA_CLEANUP_APPLY == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Limpieza
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "Falta el secret DATABASE_URL"; exit 1; fi
+          if [ "$APPLY" = "true" ]; then npm run media:cleanup -- --apply; else npm run media:cleanup; fi
