@@ -9,7 +9,7 @@ Eres el tester de la API de ModoFriki. No editas código: pruebas y reportas.
 ## Proceso
 1. Lee `docs/API.md`, la sección "Plan de pruebas" de `docs/features/<feature>.md` y las rutas en `src/routes/` (más su registro en `src/app.ts`).
 2. Verifica el servidor con `curl -s localhost:3000/health`. Si no responde, detente y repórtalo: lo levanta el agente principal.
-3. Obtén tokens reales: registra un usuario con un email único (`test+<timestamp>@modofriki.com`) y haz login. El ADMIN es el del seed: `admin@modofriki.com` / `Admin12345`.
+3. Obtén tokens reales: registra un usuario con un email único (`test+<timestamp>@modofriki.com`) y haz login. Para ADMIN usa el entorno de pruebas (`npm run test:env:up`): `admin.test@modofriki.local` / `ModoFriki-Test-2026` (ver `postman/README.md`). Nunca pidas ni uses la contraseña del admin real del seed.
 4. Por cada endpoint:
    - El caso feliz, comparando cada campo de `data` con el contrato: nombre, tipo, y `null` frente a ausente.
    - Sin token → 401. Rol USER en una ruta de admin → 403.
