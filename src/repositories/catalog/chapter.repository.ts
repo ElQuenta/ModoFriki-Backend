@@ -3,6 +3,7 @@ import type { PrismaClient } from "../../generated/prisma/client";
 import type { CatalogActor, CatalogListInput, ChapterInput, ChapterRepositoryContract, ChapterSaveInput } from "../../types/catalog.types";
 import AppError from "../../utils/AppError";
 import { catchAndLogError, createLogger } from "../../utils/logger";
+import { lockUsers, readSqlTime } from "../user-locks";
 import { authorize, canSeeDraft, chapterInclude, guardPending, linkAssets, lockWork, persistenceError } from "./catalog.persistence";
 const logger = createLogger("ChapterRepository");
 export class ChapterRepository implements ChapterRepositoryContract {
@@ -29,7 +30,7 @@ export class ChapterRepository implements ChapterRepositoryContract {
  }
  async reserve(id: string, workId: string, input: ChapterInput, actor: CatalogActor) {
   try { return await this.client.$transaction(async tx => {
-   await lockWork(tx, workId); await authorize(tx, actor, workId); await guardPending(tx, workId);
+   await lockUsers(tx, [actor.id]); await lockWork(tx, workId); await authorize(tx, actor, workId); await guardPending(tx, workId);
    if (!await tx.work.findUnique({ where: { id: workId, deletedAt: null } })) throw new AppError("Work not found", 404);
    const previous = await tx.chapter.findUnique({ where: { workId_number: { workId, number: input.number } }, include: { _count: { select: { pages: true } } } });
    // Failed creations keep their journal FKs. Reuse only this actor's untouched
@@ -47,7 +48,7 @@ export class ChapterRepository implements ChapterRepositoryContract {
  async save(input: ChapterSaveInput) {
   try { return await this.client.$transaction(async tx => {
    const { actor, workId, chapterId, data } = input;
-   await lockWork(tx, workId); await authorize(tx, actor, workId); await guardPending(tx, workId, input.batchId);
+   await lockUsers(tx, [actor.id]); await lockWork(tx, workId); await authorize(tx, actor, workId); await guardPending(tx, workId, input.batchId);
    const parent = await tx.work.findUnique({ where: { id: workId, deletedAt: null } });
    if (!parent) throw new AppError("Work not found", 404);
    const current = await tx.chapter.findUnique({ where: { id: chapterId, workId }, include: chapterInclude });
@@ -61,13 +62,14 @@ export class ChapterRepository implements ChapterRepositoryContract {
     await tx.chapterPage.deleteMany({ where: { chapterId } });
     await tx.chapterPage.createMany({ data: input.pages.map(page => ({ chapterId, assetId: page.id, position: page.position! })) });
    }
-   await tx.chapter.update({ where: { id: chapterId }, data: { ...data, deletedAt: null, version: { increment: 1 }, updatedById: actor.id, ...(data.status === "PUBLISHED" && !current.publishedAt ? { publishedAt: new Date() } : {}) } });
+   const now = await readSqlTime(tx);
+   await tx.chapter.update({ where: { id: chapterId }, data: { ...data, deletedAt: null, version: { increment: 1 }, updatedById: actor.id, ...(data.status === "PUBLISHED" && !current.publishedAt ? { publishedAt: now } : {}) } });
    return tx.chapter.findUniqueOrThrow({ where: { id: chapterId }, include: chapterInclude });
   }, { timeout: 30_000 }); } catch (error) { return catchAndLogError(logger, persistenceError(error), "Unable to save chapter"); }
  }
  async remove(workId: string, id: string, actor: CatalogActor, expectedVersion: number) {
   try { await this.client.$transaction(async tx => {
-   await lockWork(tx, workId); await authorize(tx, actor, workId); await guardPending(tx, workId);
+   await lockUsers(tx, [actor.id]); await lockWork(tx, workId); await authorize(tx, actor, workId); await guardPending(tx, workId);
    const current = await tx.chapter.findUnique({ where: { id, workId, deletedAt: null, work: { deletedAt: null } }, include: chapterInclude });
    if (!current) throw new AppError("Chapter not found", 404);
    if (current.version !== expectedVersion) throw new AppError("Chapter was modified; reload it", 409);
@@ -76,7 +78,14 @@ export class ChapterRepository implements ChapterRepositoryContract {
   }); } catch (error) { return catchAndLogError(logger, persistenceError(error), "Unable to remove chapter"); }
  }
  async abortReservation(id: string, actorId: string) {
-  try { await this.client.chapter.updateMany({ where: { id, createdById: actorId, deletedAt: { not: null }, status: "DRAFT" }, data: { deletedAt: new Date() } }); }
+  try { await this.client.$transaction(async tx => {
+   const destination = await tx.chapter.findUnique({ where: { id }, select: { workId: true } });
+   await lockUsers(tx, [actorId]);
+   if (!destination) return;
+   await lockWork(tx, destination.workId);
+   const now = await readSqlTime(tx);
+   await tx.chapter.updateMany({ where: { id, workId: destination.workId, createdById: actorId, deletedAt: { not: null }, status: "DRAFT" }, data: { deletedAt: now } });
+  }); }
   catch (error) { return catchAndLogError(logger, error, "Unable to abort chapter reservation"); }
  }
 }
