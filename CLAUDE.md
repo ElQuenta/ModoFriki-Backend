@@ -14,6 +14,7 @@ De `AGENTS.md` aplica todo: arquitectura, persistencia, pipeline multimedia, Git
 - Para probar sin tocar la DB compartida: Postgres desechable en Docker y `DATABASE_URL=postgresql://…localhost…?sslmode=disable` en la variable de entorno del comando (dotenv no la pisa).
 - `npx tsc --noEmit` y `npm run build`.
 - `npm test`: Vitest (`vitest.config.ts`, variables de entorno ficticias). Tests en `src/<capa>/__tests__/<entidad>.<capa>.test.ts`, con repositorios y servicios externos mockeados; nunca la DB real. Los `__tests__` están excluidos de `tsconfig.json` (no van al build). No hay script de `lint`.
+- `npm run test:integration`: Vitest contra el Postgres desechable (`npm run test:env:up` antes). Tests en `src/**/__integration__/*.int.test.ts` para lo que los mocks no prueban: idempotencia de visitas/lecturas, una lectura por día local, número único de capítulo, 409 por versión y migraciones desde cero. Cada archivo crea sus propios datos; `src/__integration__/guard.ts` aborta si `DATABASE_URL` no es local.
 
 ## Arquitectura por capas (por dominio: `auth`, `catalog`, `community`, `reading`, `discovery`)
 | Capa | Carpeta | Convención |

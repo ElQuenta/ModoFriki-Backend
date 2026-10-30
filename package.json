@@ -15,6 +15,7 @@
     "prisma:seed": "prisma db seed",
     "prisma:studio": "prisma studio",
     "test": "vitest run",
+    "test:integration": "node postman/test-env.mjs integration",
     "test:env:up": "node postman/test-env.mjs up",
     "test:env:server": "node postman/test-env.mjs server",
     "test:env:down": "node postman/test-env.mjs down",
