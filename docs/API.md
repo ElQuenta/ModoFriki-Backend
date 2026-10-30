@@ -2,7 +2,7 @@
 
 Es el **único acuerdo** entre el backend y el frontend:
 - El backend implementa exactamente estas rutas y formas.
-- El frontend las consume con los tipos de `ModoFriki-Web/src/shared/types.ts`, usando mocks hasta que el backend esté listo.
+- El frontend las consume con los tipos de dominio de `ModoFriki-Web/src/types/index.ts` y los DTO de `src/services/*`.
 
 Si algo tiene que cambiar, se avisa al otro y se actualiza este archivo antes de cambiar el código.
 

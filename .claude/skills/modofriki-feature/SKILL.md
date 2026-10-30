@@ -11,7 +11,7 @@ Eres el **coordinador**, como en `docs/agents/WORKFLOW.md`: delegas en los subag
 ## 1. Auditoría (tú, sin editar)
 - Corre `git status` y `git branch --show-current`. Si hay cambios sin commit que no son de esta feature, detente y pregunta.
 - Lee `docs/API.md` (la parte que corresponde a esta feature) y los planes ya hechos en `docs/features/`.
-- Respeta las dependencias: `base` (middlewares, CORS, 404, `/api/docs`, logs sin credenciales) y `schema` (schema completo + `db push` + seed) van antes que cualquier recurso. Si faltan, propón hacerlas primero.
+- Respeta las dependencias: `base` (middlewares, CORS, 404, `/api/docs`, logs sin credenciales) y `schema` (migración SQL + `migrate deploy` + seed) van antes que cualquier recurso. Si faltan, propón hacerlas primero.
 
 ## 2. Plan → `planner`
 - Escribe `docs/features/<feature>.md` con la plantilla.
@@ -22,7 +22,7 @@ Eres el **coordinador**, como en `docs/agents/WORKFLOW.md`: delegas en los subag
 `git switch dev`, `git pull` y `git switch -c feat/<feature>` (o `git switch feat/<feature>` si ya existe).
 
 ## 4. Implementación, en este orden, solo los roles que el plan necesita
-1. `db`: schema, `db push`, seed, modelos y repositorios. Pásale el plan y las firmas de repositorio esperadas.
+1. `db`: schema, migración SQL + `migrate deploy`, seed, modelos y repositorios. Pásale el plan y las firmas de repositorio esperadas.
 2. `media`: middlewares de upload y Blob, solo si la feature sube archivos.
 3. `dev`: validaciones, services, controllers, routes, `app.ts` y `openapi.yaml`. Pásale la entrega de `db` y de `media` (firmas exactas).
 

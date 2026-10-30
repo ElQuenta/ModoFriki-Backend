@@ -9,7 +9,8 @@ const command = JSON.parse(raw || "{}").tool_input?.command ?? "";
 const RULES = [
 	[/prisma\s+migrate\s+reset/, "AGENTS.md prohíbe `prisma migrate reset` sin autorización: la DB es compartida."],
 	[/--accept-data-loss|--force-reset/, "Operación destructiva sobre la DB compartida: pídele al usuario que la ejecute él si es necesaria."],
-	[/prisma\s+migrate\s+dev/, "Render no ofrece shadow DB: usa `npx prisma db push` para aplicar el schema."],
+	[/prisma\s+migrate\s+dev/, "Render no ofrece shadow DB: escribe una migración SQL aditiva y aplícala con `npx prisma migrate deploy`."],
+	[/prisma\s+db\s+push/, "CLAUDE.md prohíbe `db push`: usa una migración SQL aditiva y `npx prisma migrate deploy`."],
 	[/\b(DROP\s+(TABLE|DATABASE|SCHEMA)|TRUNCATE\s+TABLE)\b/i, "AGENTS.md prohíbe DROP/TRUNCATE sin autorización."],
 	[/dropDatabase\(|dropCollection\(|\.drop\(\)|deleteMany\(\s*(\{\s*\})?\s*\)/, "Borrado masivo de datos: requiere autorización humana."],
 	[/git\s+push\b.*(--force\b|--force-with-lease\b|\s-f\b)/, "AGENTS.md prohíbe `git push --force` en ramas compartidas."],
