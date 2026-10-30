@@ -2,7 +2,7 @@
 
 Es el **único acuerdo** entre el backend y el frontend:
 - El backend implementa exactamente estas rutas y formas.
-- El frontend las consume con los tipos de `ModoFriki-Web/src/shared/types.ts`, usando mocks hasta que el backend esté listo.
+- El frontend las consume con los tipos de dominio de `ModoFriki-Web/src/types/index.ts` y los DTO de `src/services/*`.
 
 Si algo tiene que cambiar, se avisa al otro y se actualiza este archivo antes de cambiar el código.
 
@@ -72,6 +72,8 @@ interface ModerationReport extends Report { reporterId: string; reviewedById: st
 
 Auth y Community de esta tabla se implementan en esta feature; las demás rutas describen trabajo futuro. Los esquemas SQL vigentes prevalecen sobre las referencias históricas de catálogo y seed de este documento.
 
+> **Filas históricas:** las de `works`, `chapters`, `favorites` y `users` de esta tabla son la propuesta original. Lo implementado está en «Catálogo implementado», «Biblioteca y actividad de lectura» y «Novedades y rankings (P1)» (por ejemplo, obras por `workId` y no por `slug`, listas como array con `limit` máximo 100 y favoritos en `/api/me/favorites`). La colección `postman/ModoFriki-API.postman_collection.json` prueba el comportamiento real.
+
 Registro: username tras trim entre 3 y 32 caracteres; email válido hasta 254 caracteres. Se conserva la presentación y se exige unicidad por trim/lowercase. Password sin transformar: mínimo 8 caracteres y máximo 72 bytes UTF-8. timezone es una zona IANA válida; default America/La_Paz. No se aceptan campos desconocidos ni role/status/hash del cliente. Registro siempre BASIC/ACTIVE. Login y rutas protegidas requieren status ACTIVE y deletedAt null; el rol se obtiene de DB cada petición, incluso con JWT anterior.
 
 Community usa UUID para todos los IDs. bodyMarkdown conserva su formato, debe ser no vacío y no superar 10000 caracteres. No se interpreta HTML en backend: el renderer debe sanitizarlo, restringir enlaces y tratar HTML arbitrario como texto. Las respuestas admiten profundidad arbitraria, heredan destino y raíz y se consultan como páginas planas. No hay expansión automática ni arrays de replies/likes. Authors inactivos se muestran como null.
@@ -89,6 +91,7 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P1 | POST | /api/auth/register | — | `{ username, email, password, timezone? }` | `AuthResult` (201) |
 | P1 | POST | /api/auth/login | — | `{ email, password }` | `AuthResult` |
 | P1 | GET | /api/auth/me | user | — | `User` |
+| P1 | GET | /api/auth/me/comment-restriction | user | — | restricción propia sin actor, evidencia ni historial |
 | P1 | GET | /api/genres | — | — | `Genre[]` |
 | P1 | GET | /api/tags | — | — | `Tag[]` |
 | P1 | GET | /api/works | — | `search?, type?, status?, genre?` (slug), `tag?` (slug), `sort?=latest\|popular`, `page, limit` | `Paginated<WorkSummary>` |
@@ -101,6 +104,8 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P1 | DELETE | /api/favorites/:workId | user | — | 204 |
 | P1 | GET | /api/comments | —, Bearer opcional validado | Un selector: `targetType,targetId` o `parentCommentId` o `rootCommentId`; cursor, limit | `CursorPage<Comment>` |
 | P1 | POST | /api/comments | user | Raíz `{ targetType, targetId, bodyMarkdown }` o respuesta `{ parentCommentId, bodyMarkdown }` | `Comment` (201) |
+| P1 | GET/POST | /api/admin/users/:userId/comment-sanctions | ADMIN | historial/cursor o `{ reason, endsAt, evidence? }` | historial / sanción (201) |
+| P1 | PUT | /api/admin/users/:userId/comment-sanctions/:sanctionId/revocation | ADMIN | `{}` | sanción revocada |
 | P1 | GET | /api/users/:id | — | — | `PublicUser` |
 | P1 | POST | /api/works | admin | multipart: `cover` (imagen ≤ 5 MB), `title, synopsis, type, status, author, artist?, genreIds[], tagIds[]` | `WorkDetail` (201) |
 | P1 | POST | /api/works/:workId/chapters | admin | multipart: `pages[]` (imágenes en orden, ≤ 5 MB c/u), `number, title?` | `ChapterDetail` (201) |
@@ -113,6 +118,12 @@ Sin esquemas Joi nuevos: el usuario implementará validación de esquemas; los s
 | P1 | GET | /api/comment-reports | ADMIN | `status?`, cursor, limit | `CursorPage<ModerationReport>` |
 | P1 | PATCH | /api/comment-reports/:id | ADMIN | `{ status: "RESOLVED" \| "DISMISSED", resolution }` | `ModerationReport` |
 | P2 | DELETE | /api/comments/:id | user (autor o admin) | — | 204 |
+
+Las creaciones aceptan `Idempotency-Key` UUID opcional. Una misma clave y solicitud reproduce el resultado; reutilizarla con otra solicitud devuelve 409. Mientras SQL y Mongo confirman la publicación, el contenido queda oculto. Una sanción devuelve 403 sin cerrar sesión; un resultado no verificable devuelve 503. El cursor avanza por candidatos examinados, por lo que una página puede quedar vacía con `hasMore: true`; refrescar desde la primera página incorpora confirmaciones tardías.
+
+El reintento COMMITTED recupera el mismo identificador con su contenido vigente, incluso tras edición o borrado lógico; no repone el texto original ni vuelve a tocar el padre. `endsAt` de sanciones exige un instante UTC canónico `YYYY-MM-DDTHH:mm:ss.sssZ` real o `null`; una fecha inexistente o sin zona se rechaza. La evidencia opcional se resuelve mediante los mismos repositorios que verifican visibilidad de comentarios/reportes.
+
+`readingImages` pertenece al detalle GET de capítulo (`CatalogChapterDetail`); los listados y respuestas de mutación conservan `CatalogChapter`. La validación multimedia comprueba estructura, MIME y decodificación antes de Blob, secuencialmente, con un máximo de 40 millones de píxeles por imagen y salida de validación acotada. Se reutiliza Sharp, ya instalado para miniaturas.
 | P2 | PATCH / DELETE | /api/works/:id | admin | los mismos campos de POST, todos opcionales | `WorkDetail` / 204 |
 | P2 | DELETE | /api/chapters/:id | admin | — | 204 |
 | P2 | POST / PATCH / DELETE | /api/genres[/:id], /api/tags[/:id] | admin | `{ name }` | `Genre` / `Tag` / 204 |
@@ -136,7 +147,7 @@ Listas: `page=1`, `limit=20` (máximo 100), `search`, `typeId`, `genreId`, `incl
 
 | Método | Ruta | Cuerpo / comportamiento |
 | --- | --- | --- |
-| GET / POST | `/works` | POST `title`, `synopsis`, `typeId`, `publicationStatus?`, `releaseStatus?`, `alternativeTitles?`, `genreIds?`; archivos `cover?`, `inpagecover?` |
+| GET / POST | `/works` | POST `title`, `synopsis`, `typeId`, `publicationStatus?`, `releaseStatus?`, `alternativeTitles?`, `genreIds?`; archivos `cover?`, `banner?`, `inpagecover?` |
 | GET / PUT / PATCH / DELETE | `/works/:workId` | PUT/PATCH campos parciales anteriores y `expectedUpdatedAt` ISO obligatorio; DELETE solo `expectedUpdatedAt` |
 | GET / POST | `/works/:workId/chapters` | POST `number`, `title?`, `kind?`, `status?`; archivos repetidos `pages` |
 | GET / PUT / PATCH / DELETE | `/works/:workId/chapters/:chapterId` | PUT/PATCH campos parciales de capítulo y `expectedVersion` obligatorio; si se adjuntan `pages`, reemplazan todas; DELETE solo `expectedVersion` |
@@ -147,17 +158,23 @@ Listas: `page=1`, `limit=20` (máximo 100), `search`, `typeId`, `genreId`, `incl
 
 PUT/PATCH de obra o capítulo admite JSON sin archivos: conserva todos los medios. Multipart admite adjuntos opcionales; cada archivo de portada enviado reemplaza solo ese campo. Arrays multipart (`alternativeTitles`, `genreIds`) son texto JSON, por ejemplo `genreIds='["uuid"]'`. Enviar páginas como campos repetidos `pages`, sin corchetes. Los endpoints específicos de reemplazo/inserción requieren archivos.
 
-Enums: `publicationStatus`/`status` = DRAFT o PUBLISHED; `releaseStatus` = ONGOING, COMPLETED, HIATUS o CANCELLED; `kind` = NORMAL, EXTRA o ANNOUNCEMENT. `number` decimal no negativo, hasta nueve enteros y tres decimales (preferir string). Publicar obra requiere portada. Publicar capítulo requiere páginas y obra publicada. Borradores pueden crearse sin imágenes.
+Enums: `publicationStatus`/`status` = DRAFT o PUBLISHED; `releaseStatus` = ONGOING, COMPLETED, HIATUS o CANCELLED; `kind` = NORMAL, EXTRA o ANNOUNCEMENT. `number` decimal no negativo, hasta nueve enteros y tres decimales (preferir string). La primera publicación posterior a esta migración requiere `cover`, `banner` e `inpagecover`; un borrador puede ser incompleto. Las obras publicadas antes de la migración conservan su exención interna y pueden completarse sin bloqueo retroactivo. Publicar capítulo requiere páginas y obra publicada.
 
-Límites: JPEG, PNG y WebP verificados por contenido, 10 MiB por archivo, 100 MiB total, 100 páginas por solicitud y 1000 por capítulo. Un archivo máximo por `cover` e `inpagecover`. La imagen inicial pertenece a la obra y se comparte entre sus capítulos; se devuelve como `incapBannerAsset`.
+Límites: JPEG, PNG y WebP verificados por contenido, 10 MiB por archivo, 100 MiB total, 100 páginas por solicitud y 1000 por capítulo. Un archivo máximo por `cover`, `banner` e `inpagecover`. La imagen inicial pertenece a la obra y se comparte entre sus capítulos; se devuelve como `incapBannerAsset`. El banner de ficha se devuelve como `bannerAsset` y no participa en la lectura.
 
-Los DTO reflejan relaciones persistidas: obra con `type`, `coverAsset`, `incapBannerAsset`, `alternativeTitles`, `genres[].genre`; capítulo con `pages[].asset` y `position`. Fechas ISO, `MediaAsset.sizeBytes` y `Chapter.number` como strings. Tras crear/editar usar el nuevo `updatedAt` o `version` en la siguiente mutación. `pageIds` cambia al reconstruir páginas: recargar la respuesta tras cada edición. Errores 400 validación, 401 sesión, 403 permiso, 404 recurso oculto/inexistente, 409 versión/número/ruta en conflicto, 413 límites, 415 contenido, 503 almacenamiento no configurado.
+Los DTO reflejan relaciones persistidas: obra con `type`, `coverAsset`, `bannerAsset`, `coverThumbAsset` (miniatura WebP de 300 px o null), `incapBannerAsset`, `alternativeTitles`, `genres[].genre`; capítulo con `pages[].asset`, `position` y `readingImages`. Esta secuencia antepone una entrada `WORK_OPENING` con `pageId`/`position` null cuando existe apertura y sigue con entradas `PAGE`; `pages` permanece como la lista editorial. Fechas ISO y `Chapter.number` como string. Nunca se exponen campos internos: `createdById`, `updatedById`, `deletedAt`, `coverAssetId`, `bannerAssetId`, `incapBannerAssetId`, `legacyPublicationImagesExempt`, `assetId`, ni `pathname`/`sizeBytes` de los assets (`catalogDto` en `catalog.controller.ts`). Tras crear/editar usar el nuevo `updatedAt` o `version` en la siguiente mutación. `pageIds` cambia al reconstruir páginas: recargar la respuesta tras cada edición. Errores 400 validación, 401 sesión, 403 permiso, 404 recurso oculto/inexistente, 409 versión/número/ruta en conflicto, 413 límites, 415 contenido, 503 almacenamiento no configurado.
 
-Para mostrar la imagen inicial de un capítulo, consultar `GET /api/works/:workId` y usar `incapBannerAsset`; el detalle del capítulo devuelve sus páginas. El middleware rechaza contenido de imagen inválido o MIME discordante con 400; 415 identifica formatos de páginas persistidas que no pueden reutilizarse. Un fallo inesperado del proveedor devuelve 500 sin su mensaje original.
+El detalle del capítulo devuelve `readingImages`: usar esta secuencia para leer y conservar `pages` solo para edición. Así la apertura no se duplica ni cambia posiciones editoriales. El middleware rechaza contenido de imagen inválido o MIME discordante con 400; 415 identifica formatos de páginas persistidas que no pueden reutilizarse. Un fallo inesperado del proveedor devuelve 500 sin su mensaje original.
 
-Carpeta estable de obra: `<slug-titulo>-<uuid4>/Covers/<uuid4>.<ext>` y `CoverPage/<uuid4>.<ext>`; capítulo: `<slug-obra>/Chapter-<chapterUuid4>/<uuid4>-<position>.<ext>`. Abreviaciones de cuatro caracteres generadas por servidor; editar título conserva carpeta. Una colisión devuelve 409 y requiere reintentar; nunca sobrescribe archivos. Insertar/reordenar copia páginas a nombres nuevos antes de confirmar la nueva secuencia. Solo al confirmar una nueva generación de páginas de un capítulo se borran sus archivos anteriores sin referencias. Esto incluye resubida completa, inserción y reordenamiento. Editar metadatos, cambiar portadas o retirar recursos no borra archivos en Blob. Fallos abandonan el lote y las reservas se mantienen ocultas para recuperación.
+Un mensaje final se adjunta como la última imagen multipart `pages` mediante las operaciones habituales de creación, reemplazo, inserción o reordenamiento. No existe campo, endpoint, modelo ni inserción automática de cierre; su posición se conserva como cualquier otra página y cuenta para los límites de 100 páginas por solicitud y 1000 por capítulo. `SiteSettings.generalBannerAsset` no participa en este flujo.
 
-La recepción con Multer, la validación y las operaciones `put`/`copy`/`del` de Blob se ejecutan en middlewares. El servicio construye el plan de negocio y los repositorios confirman las referencias. No existe limpieza periódica ni por vencimiento. Los archivos vencidos, abandonados o de subidas fallidas se conservan; al realizar una nueva mutación se liberan únicamente las reservas vencidas en PostgreSQL. El middleware de borrado se ejecuta después del commit de páginas, comprueba que los archivos pertenecen al capítulo y que no tienen referencias, y borra solo la generación sustituida. Si Blob rechaza ese borrado, se conserva la nueva versión confirmada y se registra un warning; no se programa un reintento automático. Los temporales locales de Multer se retiran al terminar la petición. Una creación de capítulo fallida puede reusar su reserva oculta al reintentar el mismo número; un capítulo confirmado y luego eliminado conserva ese número.
+Carpeta estable de obra: `<slug-titulo>-<uuid4>/Covers/<uuid4>.<ext>`, `Banners/<uuid4>.<ext>` y `CoverPage/<uuid4>.<ext>`; capítulo: `<slug-obra>/Chapter-<chapterUuid4>/<uuid4>-<position>.<ext>`. Abreviaciones de cuatro caracteres generadas por servidor; editar título conserva carpeta. Una colisión devuelve 409 y requiere reintentar; nunca sobrescribe archivos. Insertar/reordenar copia páginas a nombres nuevos antes de confirmar la nueva secuencia. Solo al confirmar una nueva generación de páginas de un capítulo se borran sus archivos anteriores sin referencias. Esto incluye resubida completa, inserción y reordenamiento. Editar metadatos, cambiar portadas o retirar recursos no borra archivos en Blob. Fallos abandonan el lote y las reservas se mantienen ocultas para recuperación.
+
+La recepción con Multer, la validación y las operaciones `put`/`copy`/`del` de Blob se ejecutan en middlewares. El servicio construye el plan de negocio y los repositorios confirman las referencias. La limpieza de huérfanos es un proceso aparte (`npm run media:cleanup`, ver más abajo); el pipeline no borra nada por vencimiento. Los archivos vencidos, abandonados o de subidas fallidas se conservan hasta esa limpieza; al realizar una nueva mutación se liberan únicamente las reservas vencidas en PostgreSQL. El middleware de borrado se ejecuta después del commit de páginas, comprueba que los archivos pertenecen al capítulo y que no tienen referencias, y borra solo la generación sustituida. Si Blob rechaza ese borrado, se conserva la nueva versión confirmada y se registra un warning; no se programa un reintento automático. Los temporales locales de Multer se retiran al terminar la petición. Una creación de capítulo fallida puede reusar su reserva oculta al reintentar el mismo número; un capítulo confirmado y luego eliminado conserva ese número.
+
+**Miniaturas (`npm run media:thumbnails`):** genera una WebP de 300 px de ancho por portada (sin agrandar) en la misma carpeta `Covers/`, y la enlaza en `Work.coverThumbAssetId` solo si la portada sigue siendo la misma (sin tocar `updatedAt`). Se regenera cuando la portada cambia; la anterior queda huérfana para la limpieza. Los resúmenes (`WorkRef`, biblioteca) exponen `thumbUrl`; si es null, usar `coverUrl`. Workflow `media-thumbnails.yml`, cada hora. Solo agrega archivos, nunca borra.
+
+**Limpieza de huérfanos (`npm run media:cleanup`):** por defecto solo lista (dry-run); con `-- --apply` crea un `MediaCleanupJob` por archivo y lo borra de Blob con reintentos (máx. 5, espera 2/4/8/16 min). Candidatos: `MediaAsset` sin página, portada, banner ni ajustes y con más de 24 h, y `UploadObject` sin asset de lotes ABANDONED o PENDING vencidos hace más de 24 h. Nunca toca lotes PENDING vigentes. Justo antes de borrar vuelve a comprobar que nada lo referencia (si no, `COMPLETED` con `REFERENCED`) y valida la ruta con `assertMediaPath`. El asset queda `DELETING` y sus `UploadObject` `CLEANED`. Workflow `media-cleanup.yml`: diario en dry-run; borra solo si la variable del repo `MEDIA_CLEANUP_APPLY` es `true` o se lanza a mano con `apply`.
 
 El almacenamiento Blob configurado por este pipeline es público: ocultar un borrador en la API no vuelve privadas sus URLs. Las imágenes se validan por firma y estructura (PNG también verifica su raster); JPEG/WebP no se decodifican completamente. Para verificar el proveedor se necesita un almacén de pruebas con `BLOB_READ_WRITE_TOKEN`; las pruebas automatizadas simulan Blob y no usan credenciales reales.
 
@@ -239,3 +256,35 @@ interface RecommendedWorks { basis: "genres" | "popular"; items: PopularWork[] }
 | P1 | GET | /api/works/recommended | —, Bearer opcional validado | `limit?` (default 12, máximo 50) | `RecommendedWorks` |
 
 Con sesión se toman los géneros de las obras favoritas del usuario (el id sale del token; no se acepta `userId`). Se excluyen sus favoritos y se ordenan las obras PUBLISHED y no eliminadas por cantidad de géneros coincidentes descendente y después como `popular` con `period=all` (`visits` total, `publishedAt`, `id`). `basis` es `"genres"` si el usuario tiene al menos un favorito con géneros; si no, o sin sesión, `"popular"` y el orden es el de `popular`. Errores: 400 query inválida, 401 token inválido.
+
+## Administración de roles y asignaciones (P1)
+
+Todas las rutas requieren Bearer de una cuenta `ADMIN` activa. La autorización se vuelve a comprobar en PostgreSQL dentro de las mutaciones. No existen rutas administrativas para crear, eliminar o promover cuentas `ADMIN`.
+
+```ts
+interface AdminUser {
+  id: string; username: string; role: "BASIC" | "EDITOR" | "ADMIN";
+  status: "ACTIVE" | "SUSPENDED"; createdAt: string; updatedAt: string;
+}
+interface WorkEditorAssignment {
+  id: string; workId: string; editorId: string; assignedById: string;
+  assignedAt: string; createdAt: string; revokedAt: string | null; version: number;
+}
+interface AdminCursorPage<T> {
+  items: T[]; hasMore: boolean;
+  nextCursor: { createdAt: string; id: string } | null;
+}
+```
+
+| Método | Ruta | Query/body | `data` |
+|---|---|---|---|
+| GET | `/api/admin/users` | `limit?` 1..100 (20), `role?`, `status?`, `cursorCreatedAt?` + `cursorId?` | `AdminCursorPage<AdminUser>` |
+| GET | `/api/admin/users/:userId` | — | `AdminUser` |
+| PATCH | `/api/admin/users/:userId/role` | `{ role: "BASIC" | "EDITOR", expectedUpdatedAt: ISO UTC con milisegundos }` | `AdminUser` |
+| GET | `/api/admin/users/:userId/work-assignments` | `limit?`, `includeRevoked?` (false), cursor completo | `AdminCursorPage<WorkEditorAssignment>` |
+| PUT | `/api/admin/users/:userId/work-assignments/:workId` | `{ expectedVersion: integer >= 0 }` | `WorkEditorAssignment` |
+| PATCH | `/api/admin/users/:userId/work-assignments/:workId/revocation` | `{ expectedVersion: integer >= 1 }` | `WorkEditorAssignment` |
+
+`expectedUpdatedAt` y `expectedVersion` son precondiciones CAS. Un valor anterior devuelve 409 incluso cuando el estado solicitado ya coincide. Para refrescar el CAS de rol se usa el GET de detalle; para relaciones se vuelve a listar. La primera asignación usa versión esperada 0 y devuelve versión 1. Revocar o reasignar incrementa la versión; `createdAt` conserva la posición histórica del cursor y `assignedAt` registra la asignación más reciente. Degradar un editor a BASIC revoca atómicamente todas sus relaciones activas y genera auditoría.
+
+Errores: 400 entrada desconocida, cursor incompleto o formato inválido; 401 autenticación ausente/inválida; 403 cuenta no ADMIN activa, intento de modificar ADMIN o editor no apto; 404 usuario, obra o relación inexistente; 409 precondición obsoleta/conflicto concurrente; 503 persistencia administrativa no disponible. Las respuestas nunca incluyen email, normalizados ni hash de contraseña.

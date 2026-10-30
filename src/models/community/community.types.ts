@@ -11,6 +11,8 @@ export type ReportStatus = typeof REPORT_STATUSES[number];
 
 export interface CommentRecord {
 	_id: string;
+	/** Absent only on comments created before the publication-decision protocol. */
+	creationOperationId?: string;
 	authorId: string;
 	targetType: CommentTargetType;
 	targetId: string;

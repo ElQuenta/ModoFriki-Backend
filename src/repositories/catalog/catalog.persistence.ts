@@ -1,14 +1,15 @@
 import type { Prisma } from "../../generated/prisma/client";
 import type { AssetInput, CatalogActor } from "../../types/catalog.types";
 import AppError from "../../utils/AppError";
+import { readSqlTime } from "../user-locks";
 
-export const workInclude = { type: true, coverAsset: true, incapBannerAsset: true, alternativeTitles: true, genres: { include: { genre: true } } } as const;
-export const chapterInclude = { pages: { include: { asset: true }, orderBy: { position: "asc" as const } } } as const;
+export const workInclude = { type: true, coverAsset: true, bannerAsset: true, coverThumbAsset: true, incapBannerAsset: true, alternativeTitles: true, genres: { include: { genre: true } } } as const;
+export const chapterInclude = { pages: { include: { asset: true }, orderBy: { position: "asc" as const } }, work: { select: { incapBannerAsset: true } } } as const;
 export type Transaction = Prisma.TransactionClient;
 export async function lockWork(tx: Transaction, workId: string) {
  await tx.$queryRaw`SELECT "id" FROM "Work" WHERE "id" = ${workId}::uuid FOR UPDATE`;
 }
-export async function authorize(tx: Transaction, actor: CatalogActor, workId?: string) {
+export async function authorize(tx: Transaction, actor: Pick<CatalogActor, "id">, workId?: string) {
  const user = await tx.user.findUnique({ where: { id: actor.id, status: "ACTIVE", deletedAt: null } });
  if (!user || (user.role !== "ADMIN" && user.role !== "EDITOR")) throw new AppError("Insufficient permissions", 403);
  if (user.role === "ADMIN") return;
@@ -22,15 +23,17 @@ export async function canSeeDraft(tx: Pick<Transaction, "user" | "workEditorAssi
 }
 export async function guardPending(tx: Transaction, workId: string, batchId?: string) {
  // Expiry releases the database lease only; stored files are never deleted by age.
- await tx.uploadBatch.updateMany({ where: { status: "PENDING", expiresAt: { lte: new Date() }, OR: [{ workId }, { chapter: { workId } }] }, data: { status: "ABANDONED" } });
+ const now = await readSqlTime(tx);
+ await tx.uploadBatch.updateMany({ where: { status: "PENDING", expiresAt: { lte: now }, OR: [{ workId }, { chapter: { workId } }] }, data: { status: "ABANDONED" } });
  const pending = await tx.uploadBatch.findFirst({ where: { status: "PENDING", OR: [{ workId }, { chapter: { workId } }], ...(batchId ? { id: { not: batchId } } : {}) } });
  if (pending) throw new AppError("Another upload is pending for this work", 409);
 }
 export async function linkAssets(tx: Transaction, actorId: string, workId: string, chapterId: string | undefined, assets: AssetInput[], batchId?: string) {
  if (!assets.length && !batchId) return;
  if (!batchId) throw new AppError("Upload batch is required", 409);
+ const now = await readSqlTime(tx);
  const batch = await tx.uploadBatch.findUnique({ where: { id: batchId } });
- if (!batch || batch.status !== "PENDING" || batch.expiresAt <= new Date() || batch.requestedById !== actorId || (chapterId ? batch.chapterId !== chapterId : batch.workId !== workId)) throw new AppError("Upload batch is unavailable", 409);
+ if (!batch || batch.status !== "PENDING" || batch.expiresAt <= now || batch.requestedById !== actorId || (chapterId ? batch.chapterId !== chapterId : batch.workId !== workId)) throw new AppError("Upload batch is unavailable", 409);
  const objects = await tx.uploadObject.findMany({ where: { batchId } });
  if (objects.length !== assets.length || new Set(assets.map(a => a.pathname)).size !== assets.length || objects.some(o => o.status !== "UPLOADED" || !assets.some(a => a.pathname === o.pathname))) throw new AppError("Upload batch does not match uploaded assets", 409);
  if (assets.some(asset => !Number.isSafeInteger(asset.size) || asset.size <= 0)) throw new AppError("Invalid media size", 400);
@@ -38,7 +41,7 @@ export async function linkAssets(tx: Transaction, actorId: string, workId: strin
  for (const asset of assets) {
   await tx.uploadObject.update({ where: { pathname: asset.pathname }, data: { assetId: asset.id, status: "LINKED" } });
  }
- const committed = await tx.uploadBatch.updateMany({ where: { id: batchId, status: "PENDING", expiresAt: { gt: new Date() } }, data: { status: "COMMITTED" } });
+ const committed = await tx.uploadBatch.updateMany({ where: { id: batchId, status: "PENDING", expiresAt: { gt: now } }, data: { status: "COMMITTED" } });
  if (!committed.count) throw new AppError("Upload batch expired", 409);
 }
 export function persistenceError(error: unknown): unknown {

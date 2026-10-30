@@ -1,0 +1,2426 @@
+{
+	"info": {
+		"name": "ModoFriki API",
+		"description": "Pruebas de la API de ModoFriki. Pensada para la DB desechable de docker-compose.test.yml con postman/fixtures/test-data.sql. Ver postman/README.md.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"event": [
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"pm.test(\"no expone passwordHash\", () => pm.expect(pm.response.text()).not.to.include(\"passwordHash\"));",
+					"pm.test(\"responde en < 3 s\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+				]
+			}
+		}
+	],
+	"item": [
+		{
+			"name": "00 Salud",
+			"description": "El servidor está arriba y las rutas desconocidas devuelven JSON.",
+			"item": [
+				{
+					"name": "Health",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"status ok\", () => pm.expect(pm.response.json().data.status).to.eql(\"ok\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{serverUrl}}/health",
+							"host": [
+								"{{serverUrl}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					}
+				},
+				{
+					"name": "Ruta inexistente → 404 JSON",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(404); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/ruta-que-no-existe",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"ruta-que-no-existe"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "01 Auth",
+			"description": "Registro, login y sesión. Crea un usuario nuevo en cada corrida.",
+			"item": [
+				{
+					"name": "Registro OK",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const n = Date.now().toString(36) + Math.floor(Math.random() * 1e4);",
+									"pm.collectionVariables.set(\"newUsername\", `tester_${n}`);",
+									"pm.collectionVariables.set(\"newEmail\", `tester_${n}@modofriki.local`);"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(201); });",
+									"const d = pm.response.json().data;",
+									"pm.test(\"devuelve user y token\", () => { pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.user.email).to.eql(pm.collectionVariables.get(\"newEmail\")); });",
+									"pm.test(\"rol BASIC\", () => pm.expect(d.user.role).to.eql(\"BASIC\"));",
+									"pm.collectionVariables.set(\"userToken\", d.token);",
+									"pm.collectionVariables.set(\"userId\", d.user.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"{{newUsername}}\",\n  \"email\": \"{{newEmail}}\",\n  \"password\": \"{{newPassword}}\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Registro duplicado → 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(409); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"{{newUsername}}\",\n  \"email\": \"{{newEmail}}\",\n  \"password\": \"{{newPassword}}\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Registro con password corta → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"corto_pw\",\n  \"email\": \"corto@modofriki.local\",\n  \"password\": \"123\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Registro intentando ser ADMIN → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"hacker_x\",\n  \"email\": \"hacker@modofriki.local\",\n  \"password\": \"Password123\",\n  \"role\": \"ADMIN\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Login admin OK",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"const d = pm.response.json().data;",
+									"pm.test(\"rol ADMIN\", () => pm.expect(d.user.role).to.eql(\"ADMIN\"));",
+									"pm.collectionVariables.set(\"adminToken\", d.token);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Login con password incorrecta → 401",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(401); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"incorrecta123\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Login con JSON malformado → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{malformado"
+						}
+					}
+				},
+				{
+					"name": "Me OK",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"es el usuario registrado\", () => pm.expect(pm.response.json().data.id).to.eql(pm.collectionVariables.get(\"userId\")));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						}
+					}
+				},
+				{
+					"name": "Me sin token → 401",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(401); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						}
+					}
+				},
+				{
+					"name": "Me con token inválido → 401",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(401); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{invalidToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "02 Catálogo",
+			"description": "Lectura pública del catálogo y permisos de escritura.",
+			"item": [
+				{
+					"name": "Géneros",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"es un array\", () => pm.expect(pm.response.json().data).to.be.an(\"array\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/genres",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"genres"
+							]
+						}
+					}
+				},
+				{
+					"name": "Tipos de obra",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"es un array\", () => pm.expect(pm.response.json().data).to.be.an(\"array\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/work-types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"work-types"
+							]
+						}
+					}
+				},
+				{
+					"name": "Listar obras",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"const items = pm.response.json().data;",
+									"pm.test(\"incluye la obra publicada\", () => pm.expect(items.map(w => w.id)).to.include(pm.collectionVariables.get(\"workId\")));",
+									"pm.test(\"no incluye borradores\", () => pm.expect(items.map(w => w.id)).to.not.include(pm.collectionVariables.get(\"draftWorkId\")));",
+									"pm.test(\"no expone campos internos\", () => { const t = pm.response.text(); [\"createdById\", \"updatedById\", \"deletedAt\", \"pathname\", \"sizeBytes\", \"coverAssetId\", \"incapBannerAssetId\", \"assetId\"].forEach(k => pm.expect(t).to.not.include(`\"${k}\"`)); });"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works?limit=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Listar obras con limit fuera de rango → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works?limit=999",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "999"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Detalle de obra",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"es la obra pedida\", () => pm.expect(pm.response.json().data.id).to.eql(pm.collectionVariables.get(\"workId\")));",
+									"pm.test(\"no expone campos internos\", () => { const t = pm.response.text(); [\"createdById\", \"updatedById\", \"deletedAt\", \"pathname\", \"sizeBytes\", \"coverAssetId\", \"incapBannerAssetId\", \"assetId\"].forEach(k => pm.expect(t).to.not.include(`\"${k}\"`)); });"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{workId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{workId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Obra en borrador (anónimo) → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(404); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{draftWorkId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{draftWorkId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Obra inexistente → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(404); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{missingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{missingId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Capítulos de la obra",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"tiene capítulos\", () => pm.expect(pm.response.json().data.length).to.be.above(0));",
+									"pm.test(\"no expone campos internos\", () => { const t = pm.response.text(); [\"createdById\", \"updatedById\", \"deletedAt\", \"pathname\", \"sizeBytes\", \"coverAssetId\", \"incapBannerAssetId\", \"assetId\"].forEach(k => pm.expect(t).to.not.include(`\"${k}\"`)); });"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{workId}}/chapters",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{workId}}",
+								"chapters"
+							]
+						}
+					}
+				},
+				{
+					"name": "Detalle de capítulo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"const d = pm.response.json().data;",
+									"pm.test(\"tiene páginas\", () => pm.expect(d.pages.length).to.be.above(0));",
+									"pm.test(\"no expone campos internos\", () => { const t = pm.response.text(); [\"createdById\", \"updatedById\", \"deletedAt\", \"pathname\", \"sizeBytes\", \"coverAssetId\", \"incapBannerAssetId\", \"assetId\"].forEach(k => pm.expect(t).to.not.include(`\"${k}\"`)); });"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{workId}}/chapters/{{chapterId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{workId}}",
+								"chapters",
+								"{{chapterId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Capítulo inexistente → 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(404); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{workId}}/chapters/{{missingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{workId}}",
+								"chapters",
+								"{{missingId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Crear género sin token → 401",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(401); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/genres",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"genres"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Prueba\",\n  \"slug\": \"prueba\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Crear género como BASIC → 403",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(403); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/genres",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"genres"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Prueba\",\n  \"slug\": \"prueba\"\n}"
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "03 Descubrimiento",
+			"description": "Novedades, populares y recomendados.",
+			"item": [
+				{
+					"name": "Últimos capítulos",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"paginado\", () => pm.expect(pm.response.json().data.items).to.be.an(\"array\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/chapters/latest?limit=5",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"chapters",
+								"latest"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "5"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Últimos capítulos con limit=0 → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/chapters/latest?limit=0",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"chapters",
+								"latest"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "0"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obras populares",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"const d = pm.response.json().data;",
+									"pm.test(\"paginado\", () => { pm.expect(d.items).to.be.an(\"array\"); pm.expect(d.total).to.be.a(\"number\"); });"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/popular",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"popular"
+							]
+						}
+					}
+				},
+				{
+					"name": "Obras populares con period inválido → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/popular?period=year",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"popular"
+							],
+							"query": [
+								{
+									"key": "period",
+									"value": "year"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Recomendadas (anónimo)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"items\", () => pm.expect(pm.response.json().data.items).to.be.an(\"array\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/recommended",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"recommended"
+							]
+						}
+					}
+				},
+				{
+					"name": "Recomendadas (con sesión)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/works/recommended",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"recommended"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "04 Lectura y biblioteca",
+			"description": "Visitas, favoritos, puntuación y progreso con el usuario recién registrado.",
+			"item": [
+				{
+					"name": "Registrar visita",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{workId}}/visits",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{workId}}",
+								"visits"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Estadísticas de obra",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"tiene visits\", () => pm.expect(pm.response.json().data.visits).to.be.a(\"number\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{workId}}/stats",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{workId}}",
+								"stats"
+							]
+						}
+					}
+				},
+				{
+					"name": "Favoritos sin token → 401",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(401); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/me/favorites",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"favorites"
+							]
+						}
+					}
+				},
+				{
+					"name": "Agregar favorito",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"isFavorite\", () => pm.expect(pm.response.json().data.isFavorite).to.eql(true));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/me/favorites/{{workId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"favorites",
+								"{{workId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Listar favoritos",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"incluye la obra\", () => pm.expect(pm.response.json().data.items.map(f => f.work.id)).to.include(pm.collectionVariables.get(\"workId\")));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/me/favorites",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"favorites"
+							]
+						}
+					}
+				},
+				{
+					"name": "Puntuar obra (4.5)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"score 4.5\", () => pm.expect(pm.response.json().data.score).to.eql(4.5));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{workId}}/rating",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{workId}}",
+								"rating"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"score\": 4.5\n}"
+						}
+					}
+				},
+				{
+					"name": "Puntuación inválida (4.3) → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{workId}}/rating",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{workId}}",
+								"rating"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"score\": 4.3\n}"
+						}
+					}
+				},
+				{
+					"name": "Marcar capítulo leído",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"isRead\", () => pm.expect(pm.response.json().data.isRead).to.eql(true));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/me/read-chapters/{{chapterId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"read-chapters",
+								"{{chapterId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Progreso de la obra",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"al menos 1 leído\", () => pm.expect(pm.response.json().data.readChapters).to.be.at.least(1));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/me/works/{{workId}}/progress",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"works",
+								"{{workId}}",
+								"progress"
+							]
+						}
+					}
+				},
+				{
+					"name": "Historial de lectura",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"tiene items\", () => pm.expect(pm.response.json().data.items.length).to.be.above(0));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/me/reading-history",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"reading-history"
+							]
+						}
+					}
+				},
+				{
+					"name": "Estadísticas de lectura",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/me/reading-stats",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"reading-stats"
+							]
+						}
+					}
+				},
+				{
+					"name": "Calendario con fecha inválida → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/me/reading-calendar?from=2026-02-30",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"reading-calendar"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "2026-02-30"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Quitar puntuación",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 204\", () => pm.response.to.have.status(204));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/works/{{workId}}/rating",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"works",
+								"{{workId}}",
+								"rating"
+							]
+						}
+					}
+				},
+				{
+					"name": "Quitar favorito",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 204\", () => pm.response.to.have.status(204));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/me/favorites/{{workId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"favorites",
+								"{{workId}}"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "05 Comunidad",
+			"description": "Comentarios, edición con revisión, votos, reportes y moderación.",
+			"item": [
+				{
+					"name": "Listar comentarios (anónimo)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"const d = pm.response.json().data;",
+									"pm.test(\"CursorPage\", () => { pm.expect(d.items).to.be.an(\"array\"); pm.expect(d.hasMore).to.be.a(\"boolean\"); });"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/comments?targetType=WORK&targetId={{workId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments"
+							],
+							"query": [
+								{
+									"key": "targetType",
+									"value": "WORK"
+								},
+								{
+									"key": "targetId",
+									"value": "{{workId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Listar comentarios sin selector → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/comments",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments"
+							]
+						}
+					}
+				},
+				{
+					"name": "Comentar sin token → 401",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(401); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"targetType\": \"WORK\",\n  \"targetId\": \"{{workId}}\",\n  \"bodyMarkdown\": \"Hola\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Comentar vacío → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"targetType\": \"WORK\",\n  \"targetId\": \"{{workId}}\",\n  \"bodyMarkdown\": \"   \"\n}"
+						}
+					}
+				},
+				{
+					"name": "Comentar OK",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(201); });",
+									"const d = pm.response.json().data;",
+									"pm.test(\"autor es el usuario\", () => pm.expect(d.author.id).to.eql(pm.collectionVariables.get(\"userId\")));",
+									"pm.test(\"revision 0 y ACTIVE\", () => { pm.expect(d.revision).to.eql(0); pm.expect(d.status).to.eql(\"ACTIVE\"); });",
+									"pm.collectionVariables.set(\"commentId\", d.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"targetType\": \"WORK\",\n  \"targetId\": \"{{workId}}\",\n  \"bodyMarkdown\": \"Comentario de **prueba** automática\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Responder comentario",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(201); });",
+									"pm.test(\"rootCommentId es el padre\", () => pm.expect(pm.response.json().data.rootCommentId).to.eql(pm.collectionVariables.get(\"commentId\")));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"parentCommentId\": \"{{commentId}}\",\n  \"bodyMarkdown\": \"Respuesta de prueba\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Editar comentario",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// La revisión sube también con respuestas y votos: se lee la actual antes de editar.",
+									"pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/comments?rootCommentId=${pm.collectionVariables.get(\"commentId\")}`, method: \"GET\" }, (e, r) => {",
+									"\tconst c = r.json().data.items.find(i => i.id === pm.collectionVariables.get(\"commentId\"));",
+									"\tpm.collectionVariables.set(\"commentRevision\", c.revision);",
+									"});"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"editedAt presente\", () => pm.expect(pm.response.json().data.editedAt).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments/{{commentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments",
+								"{{commentId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bodyMarkdown\": \"Comentario editado\",\n  \"expectedRevision\": {{commentRevision}}\n}"
+						}
+					}
+				},
+				{
+					"name": "Editar con revisión obsoleta → 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(409); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments/{{commentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments",
+								"{{commentId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bodyMarkdown\": \"Otra edición\",\n  \"expectedRevision\": {{commentRevision}}\n}"
+						}
+					}
+				},
+				{
+					"name": "Editar comentario ajeno → 403",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(403); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments/{{commentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments",
+								"{{commentId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bodyMarkdown\": \"No es mío\",\n  \"expectedRevision\": 0\n}"
+						}
+					}
+				},
+				{
+					"name": "Votar +1",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"upvotes 1\", () => pm.expect(pm.response.json().data.upvotes).to.eql(1));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments/{{commentId}}/vote",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments",
+								"{{commentId}}",
+								"vote"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"value\": 1\n}"
+						}
+					}
+				},
+				{
+					"name": "Votar valor inválido → 400",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(400); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments/{{commentId}}/vote",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments",
+								"{{commentId}}",
+								"vote"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"value\": 5\n}"
+						}
+					}
+				},
+				{
+					"name": "Retirar voto",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 204\", () => pm.response.to.have.status(204));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments/{{commentId}}/vote",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments",
+								"{{commentId}}",
+								"vote"
+							]
+						}
+					}
+				},
+				{
+					"name": "Reportar comentario",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(201); });",
+									"const d = pm.response.json().data;",
+									"pm.test(\"OPEN\", () => pm.expect(d.status).to.eql(\"OPEN\"));",
+									"pm.collectionVariables.set(\"reportId\", d.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments/{{commentId}}/reports",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments",
+								"{{commentId}}",
+								"reports"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"SPAM\",\n  \"details\": \"Reporte de prueba\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Reporte duplicado → 409",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 409\", () => pm.response.to.have.status(409));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(409); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments/{{commentId}}/reports",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments",
+								"{{commentId}}",
+								"reports"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"SPAM\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Ver reportes como BASIC → 403",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(false); pm.expect(b.code).to.eql(403); });",
+									"pm.test(\"error.message presente\", () => pm.expect(pm.response.json().error.message).to.be.a(\"string\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comment-reports",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comment-reports"
+							]
+						}
+					}
+				},
+				{
+					"name": "Ver reportes como ADMIN",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"incluye el reporte\", () => pm.expect(pm.response.json().data.items.map(r => r.id)).to.include(pm.collectionVariables.get(\"reportId\")));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comment-reports",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comment-reports"
+							]
+						}
+					}
+				},
+				{
+					"name": "Resolver reporte",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
+									"pm.test(\"DISMISSED\", () => pm.expect(pm.response.json().data.status).to.eql(\"DISMISSED\"));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comment-reports/{{reportId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comment-reports",
+								"{{reportId}}"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"DISMISSED\",\n  \"resolution\": \"Prueba automática\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Borrar comentario propio",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"status 204\", () => pm.response.to.have.status(204));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/comments/{{commentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"comments",
+								"{{commentId}}"
+							]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "serverUrl",
+			"value": "http://localhost:3000"
+		},
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000/api"
+		},
+		{
+			"key": "adminEmail",
+			"value": "admin.test@modofriki.local"
+		},
+		{
+			"key": "adminPassword",
+			"value": "ModoFriki-Test-2026"
+		},
+		{
+			"key": "newPassword",
+			"value": "Password-Test-123"
+		},
+		{
+			"key": "workId",
+			"value": "66666666-6666-4666-8666-666666666666"
+		},
+		{
+			"key": "draftWorkId",
+			"value": "66666666-6666-4666-8666-666666666667"
+		},
+		{
+			"key": "chapterId",
+			"value": "77777777-7777-4777-8777-777777777771"
+		},
+		{
+			"key": "missingId",
+			"value": "00000000-0000-4000-8000-000000000000"
+		},
+		{
+			"key": "invalidToken",
+			"value": "token.invalido.123"
+		},
+		{
+			"key": "newUsername",
+			"value": ""
+		},
+		{
+			"key": "newEmail",
+			"value": ""
+		},
+		{
+			"key": "userToken",
+			"value": ""
+		},
+		{
+			"key": "userId",
+			"value": ""
+		},
+		{
+			"key": "adminToken",
+			"value": ""
+		},
+		{
+			"key": "commentId",
+			"value": ""
+		},
+		{
+			"key": "commentRevision",
+			"value": "0"
+		},
+		{
+			"key": "reportId",
+			"value": ""
+		}
+	]
+}

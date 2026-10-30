@@ -48,7 +48,8 @@ const fakes = () => ({
 	votes: { setVote: vi.fn(), removeVote: vi.fn(), getSummaries: vi.fn().mockResolvedValue([]) },
 	reports: { create: vi.fn(), listForModeration: vi.fn(), resolveAsModerator: vi.fn() },
 	catalog: { findWork: vi.fn().mockResolvedValue({ id: workId }), findChapter: vi.fn().mockResolvedValue({ id: workId, workId }) },
-	users: { findByIds: vi.fn().mockResolvedValue([{ id: authorId, username: "alan", status: "ACTIVE", deletedAt: null }]) }
+		users: { findByIds: vi.fn().mockResolvedValue([{ id: authorId, username: "alan", status: "ACTIVE", deletedAt: null }]) },
+		publication: { create: vi.fn().mockResolvedValue(record()) }
 });
 
 describe("CommunityService", () => {
@@ -57,7 +58,13 @@ describe("CommunityService", () => {
 
 	beforeEach(() => {
 		f = fakes();
-		service = new CommunityService(f.comments as never, f.votes as never, f.reports as never, f.catalog as never, f.users as never);
+		service = new CommunityService(f.comments as never, f.votes as never, f.reports as never, f.catalog as never, f.users as never, f.publication as never);
+	});
+
+	it("allows a committed reply retry to reach recovery after its parent was soft deleted", async () => {
+		f.comments.findById.mockResolvedValue(record({ status: "DELETED", bodyMarkdown: null }));
+		await service.create({ parentCommentId: commentId, bodyMarkdown: "original" }, author, reportId);
+		expect(f.publication.create).toHaveBeenCalledWith({ parentCommentId: commentId, bodyMarkdown: "original" }, author, reportId);
 	});
 
 	describe("list", () => {
@@ -107,9 +114,9 @@ describe("CommunityService", () => {
 
 	describe("create", () => {
 		it("usa el id del usuario autenticado como authorId", async () => {
-			f.comments.createRoot.mockResolvedValue(record());
+			f.publication.create.mockResolvedValue(record());
 			await service.create({ targetType: "WORK", targetId: workId, bodyMarkdown: "hola" }, author);
-			expect(f.comments.createRoot).toHaveBeenCalledWith({ authorId, targetType: "WORK", targetId: workId, bodyMarkdown: "hola" });
+			expect(f.publication.create).toHaveBeenCalledWith({ targetType: "WORK", targetId: workId, bodyMarkdown: "hola" }, author, undefined);
 		});
 
 		it("rechaza authorId en el body → 400", async () => {

@@ -4,6 +4,8 @@ import { catalogRepository, type CatalogRepositoryContract } from "../../reposit
 import { CommentRepository } from "../../repositories/community/comment.repository";
 import { CommentVoteRepository } from "../../repositories/community/comment-vote.repository";
 import { CommentReportRepository } from "../../repositories/community/comment-report.repository";
+import { commentCreationRepository } from "../../repositories/community/comment-creation.repository";
+import { CommentCreationService, commentCreationService, type CreateCommentRequest } from "./comment-creation.service";
 import { enumValue, revision, text, uuid, type CommunityPage, type CommunityPageOptions } from "../../repositories/community/community.validation";
 import type { AuthRepositoryContract } from "../../types/auth.types";
 import type { AuthUser } from "../../types/express";
@@ -31,11 +33,12 @@ export interface ModerationReportDto extends ReportDto {
 
 export class CommunityService {
 	constructor(
-		private readonly comments: CommentAccess = new CommentRepository(),
-		private readonly votes: VoteAccess = new CommentVoteRepository(),
-		private readonly reports: ReportAccess = new CommentReportRepository(),
+		private readonly comments: CommentAccess = new CommentRepository({ decisions: commentCreationRepository }),
+		private readonly votes: VoteAccess = new CommentVoteRepository({ decisions: commentCreationRepository }),
+		private readonly reports: ReportAccess = new CommentReportRepository({ decisions: commentCreationRepository }),
 		private readonly catalog: CatalogRepositoryContract = catalogRepository,
-		private readonly users: Pick<AuthRepositoryContract, "findByIds"> = authRepository
+		private readonly users: Pick<AuthRepositoryContract, "findByIds"> = authRepository,
+		private readonly publication: Pick<CommentCreationService, "create"> = commentCreationService
 	) {}
 
 	private input(input: unknown, allowed: string[]): Record<string, unknown> {
@@ -153,23 +156,25 @@ export class CommunityService {
 		} catch (error) { return catchAndLogError(logger, error, "Unable to list comments"); }
 	}
 
-	async create(input: unknown, actor: AuthUser): Promise<CommentDto> {
+	async create(input: unknown, actor: AuthUser, idempotencyKey?: string): Promise<CommentDto> {
 		try {
 			logger.debug("Creating comment");
 			this.actor(actor);
 			const body = this.input(input, ["targetType", "targetId", "parentCommentId", "bodyMarkdown"]);
 			const bodyMarkdown = text(body.bodyMarkdown, "bodyMarkdown", 10000);
-			let record: CommentRecord;
+			let request: CreateCommentRequest;
 			if (body.parentCommentId !== undefined) {
 				if (body.targetType !== undefined || body.targetId !== undefined) throw new AppError("Reply destination is inherited from its parent", 400);
-				const parent = await this.comment(body.parentCommentId, true);
-				record = await this.comments.createReply({ authorId: actor.id, parentCommentId: parent._id, bodyMarkdown });
+				// A committed retry survives parent soft deletion; a fresh stageReply still requires ACTIVE.
+				const parent = await this.comment(body.parentCommentId, idempotencyKey === undefined);
+				request = { parentCommentId: parent._id, bodyMarkdown };
 			} else {
 				const targetType = enumValue(body.targetType, COMMENT_TARGET_TYPES, "targetType");
 				const targetId = uuid(body.targetId, "targetId");
 				await this.published(targetType, targetId);
-				record = await this.comments.createRoot({ authorId: actor.id, targetType, targetId, bodyMarkdown });
+				request = { targetType, targetId, bodyMarkdown };
 			}
+			const record = await this.publication.create(request, actor, idempotencyKey);
 			return (await this.dtos([record]))[0];
 		} catch (error) { return catchAndLogError(logger, error, "Unable to create comment"); }
 	}

@@ -9,6 +9,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: dev
+    env:
+      # Solo para que prisma.config.ts resuelva env("DATABASE_URL"); estos pasos no se conectan.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
@@ -17,12 +20,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Verificar sintaxis
-        run: find src -name "*.js" -exec node --check {} \;
+      # Antes solo revisaba archivos .js, y en src/ solo hay .ts: no validaba nada.
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+
+      - name: Verificar tipos
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
 
       - name: Desplegar en Render
         run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

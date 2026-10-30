@@ -14,6 +14,9 @@ De `AGENTS.md` aplica todo: arquitectura, persistencia, pipeline multimedia, Git
 - Para probar sin tocar la DB compartida: Postgres desechable en Docker y `DATABASE_URL=postgresql://…localhost…?sslmode=disable` en la variable de entorno del comando (dotenv no la pisa).
 - `npx tsc --noEmit` y `npm run build`.
 - `npm test`: Vitest (`vitest.config.ts`, variables de entorno ficticias). Tests en `src/<capa>/__tests__/<entidad>.<capa>.test.ts`, con repositorios y servicios externos mockeados; nunca la DB real. Los `__tests__` están excluidos de `tsconfig.json` (no van al build). No hay script de `lint`.
+- `npm run media:thumbnails`: miniaturas WebP de portadas (`Work.coverThumbAssetId`, `thumbUrl` en los resúmenes). Solo agrega; nunca borra.
+- `npm run media:cleanup` (dry-run) / `npm run media:cleanup -- --apply`: limpieza de imágenes huérfanas en Blob con `MediaCleanupJob` (detalle en `docs/API.md`). Nunca lo corras con `--apply` contra Render sin el OK del usuario.
+- `npm run test:integration`: Vitest contra el Postgres desechable (`npm run test:env:up` antes). Tests en `src/**/__integration__/*.int.test.ts` para lo que los mocks no prueban: idempotencia de visitas/lecturas, una lectura por día local, número único de capítulo, 409 por versión y migraciones desde cero. También corre los `src/**/__tests__/**/*.integration.test.ts`. Cada archivo crea sus propios datos. El destino lo valida `test-support/integration-environment.ts` (`TEST_DATABASE_URL`/`TEST_MONGODB_URI`, solo loopback y bases `mf_admin_test_<id>`; el script usa `mf_admin_test_integration`) y además `src/__integration__/guard.ts`.
 
 ## Arquitectura por capas (por dominio: `auth`, `catalog`, `community`, `reading`, `discovery`)
 | Capa | Carpeta | Convención |
@@ -46,6 +49,7 @@ De `AGENTS.md` aplica todo: arquitectura, persistencia, pipeline multimedia, Git
 | `media` | `src/middlewares/media/**`, `src/utils/media-paths.ts` | Si la feature sube archivos |
 | `dev` | `src/routes/**`, `src/controllers/**`, `src/services/**`, `src/middlewares/schemas/**`, `src/middlewares/{auth,role,catalog,validatebody,validateParams,validateQuery}.middleware.ts`, `src/types/express.d.ts`, `src/app.ts`, `openapi.yaml`, `package.json` | Siempre, después de `db` y `media` |
 | `test` | Nada (prueba con curl) | Después de implementar |
+| `tester-api` | Nada (colección Postman con newman + MCP `postman`) | En `/probar-backend` y `/corregir-backend` |
 | (principal) | `**/__tests__/**`, `vitest.config.ts`, `docs/**`, `CLAUDE.md` | Unit tests y documentación |
 | `reviewer` | Nada (revisa) | Antes de cada commit |
 | `security` | Nada (audita) | En paralelo con `reviewer` si la feature toca auth, permisos, uploads o secretos |
@@ -57,6 +61,13 @@ Dependencias: cualquier rol puede instalar los `@types/*` que necesiten sus arch
 ## Skill
 `/modofriki-feature <feature>` es el flujo completo de `docs/agents/WORKFLOW.md` adaptado a Claude.
 MVP terminado (dominios `auth`, `catalog`, `community`, `reading`, `discovery`). Cada feature nueva pasa por el skill con su propia rama.
+
+## Pruebas de API (`postman/README.md`)
+- `/probar-backend [carpeta]`: entorno desechable en Docker (`npm run test:env:up` + `test:env:server`), colección `postman/ModoFriki-API.postman_collection.json` con newman (`npm run test:api`) y reporte clasificado de `tester-api`. Solo lee.
+- `/corregir-backend [carpeta]`: prueba, corrige bugs delegando en el rol dueño, re-prueba (máx. 2 rondas), `npm test` + build + `reviewer`. No hace commit.
+- MCP `postman` (`.mcp.json`): usa la `POSTMAN_API_KEY` personal de cada uno (variable de entorno del sistema, nunca en el repo) solo para sincronizar la colección con Postman. Ejecuta newman, porque Postman en la nube no llega a `localhost`.
+- Nunca correr la colección contra Render: la guardia es `GET /api/works/66666666-6666-4666-8666-666666666666` → 200 (fixture que solo existe en la DB de pruebas).
+- Si cambias un endpoint, actualiza su request en la colección en el mismo PR.
 
 ## Hooks (`.claude/settings.json`)
 - **PreToolUse en Edit/Write:** bloquea `.env*` (excepto `.env.example`) y `src/generated/**`.

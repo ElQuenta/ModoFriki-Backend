@@ -1,0 +1,30 @@
+{
+  "description": "Hooks simples del backend: Prisma tras cambios y comprobaciones al terminar.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^(Bash|apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('node:child_process').execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim()+'/.codex/hooks/prisma.cjs')\"",
+            "timeout": 110,
+            "statusMessage": "Sincronizando cliente Prisma si cambio el schema"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('node:child_process').execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim()+'/.codex/hooks/check.cjs')\"",
+            "timeout": 70,
+            "statusMessage": "Comprobando TypeScript y espacios del diff"
+          }
+        ]
+      }
+    ]
+  }
+}

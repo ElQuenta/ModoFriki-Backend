@@ -23,9 +23,11 @@ const editor: CatalogActor = { id: "a2b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", role:
 const basic: CatalogActor = { id: "a3b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", role: "BASIC" };
 
 const cover = { fieldName: "cover", contentType: "image/png", size: 100, extension: "png" };
+const banner = { fieldName: "banner", contentType: "image/png", size: 100, extension: "png" };
+const inpagecover = { fieldName: "inpagecover", contentType: "image/png", size: 100, extension: "png" };
 const pageImg = { fieldName: "pages", contentType: "image/jpeg", size: 100, extension: "jpg" };
 
-const makeWork = (over: Record<string, unknown> = {}) => ({ id: workId, slug: "mi-obra-3f2b", updatedAt, publicationStatus: "DRAFT", coverAssetId: null, ...over });
+const makeWork = (over: Record<string, unknown> = {}) => ({ id: workId, slug: "mi-obra-3f2b", updatedAt, publicationStatus: "DRAFT", coverAssetId: null, bannerAssetId: null, incapBannerAssetId: null, legacyPublicationImagesExempt: false, ...over });
 const makePage = (id: string, position: number) => ({ id, position, assetId: `asset-${position}`, asset: { contentType: "image/png", sizeBytes: BigInt(50), pathname: `mi-obra-3f2b/Chapter-b1c2/aaaa-${position}.png` } });
 const makeChapter = (over: Record<string, unknown> = {}) => ({ id: chapterId, version: 3, status: "DRAFT", pages: [] as ReturnType<typeof makePage>[], ...over });
 
@@ -81,6 +83,16 @@ describe("lecturas públicas", () => {
 	it("getChapter inexistente u oculto → 404", async () => {
 		repos.chapters.findById.mockResolvedValueOnce(null);
 		await expectStatus(service.getChapter(workId, chapterId), 404, "Chapter not found");
+	});
+	it("getChapter conserva pages y antepone una sola apertura vigente", async () => {
+		const page = makePage(pageA, 1);
+		repos.chapters.findById.mockResolvedValueOnce(makeChapter({ pages: [page], work: { incapBannerAsset: { id: "opening", url: "https://blob/opening.png", contentType: "image/png" } } }));
+		const chapter = await service.getChapter(workId, chapterId);
+		expect(chapter.pages).toEqual([page]);
+		expect(chapter.readingImages).toEqual([
+			{ kind: "WORK_OPENING", asset: { id: "opening", url: "https://blob/opening.png", contentType: "image/png" }, pageId: null, position: null },
+			{ kind: "PAGE", asset: { id: page.asset.id, url: page.asset.url, contentType: page.asset.contentType }, pageId: page.id, position: 1 }
+		]);
 	});
 	it("listChapters de obra oculta → 404 sin listar", async () => {
 		repos.works.findById.mockResolvedValueOnce(null);
@@ -172,20 +184,22 @@ describe("conflictos 409", () => {
 });
 
 describe("reglas de publicación", () => {
-	it("crear obra PUBLISHED sin portada → 400", async () => {
-		await expectStatus(service.prepare("createWork", { ...newWork, publicationStatus: "PUBLISHED" }, [], admin), 400, "Published work requires a cover");
+	it("crear obra PUBLISHED sin sus tres imágenes → 400 antes del Blob", async () => {
+		await expectStatus(service.prepare("createWork", { ...newWork, publicationStatus: "PUBLISHED" }, [], admin), 400, "Published work requires cover, banner and in-page cover");
 		expect(repos.works.reserve).not.toHaveBeenCalled();
 	});
-	it("crear obra PUBLISHED con portada planifica el objeto", async () => {
-		const { plan } = await service.prepare("createWork", { ...newWork, publicationStatus: "PUBLISHED" }, [cover], admin);
-		expect(plan.objects).toHaveLength(1);
-		expect(plan.objects[0].pathname).toMatch(/^mi-obra-3f2b\/Covers\/[a-f0-9]{4}\.png$/);
+	it("crear obra PUBLISHED con tres imágenes planifica recursos aislados", async () => {
+		const { plan } = await service.prepare("createWork", { ...newWork, publicationStatus: "PUBLISHED" }, [cover, banner, inpagecover], admin);
+		expect(plan.objects).toHaveLength(3);
+		expect(plan.objects.map(object => object.pathname)).toEqual(expect.arrayContaining([expect.stringMatching(/^mi-obra-3f2b\/Covers\/[a-f0-9]{4}\.png$/), expect.stringMatching(/^mi-obra-3f2b\/Banners\/[a-f0-9]{4}\.png$/), expect.stringMatching(/^mi-obra-3f2b\/CoverPage\/[a-f0-9]{4}\.png$/)]));
 	});
-	it("editar a PUBLISHED sin portada previa ni nueva → 400", async () => {
-		await expectStatus(service.prepare("editWork", { publicationStatus: "PUBLISHED", expectedUpdatedAt: updatedAt.toISOString() }, [], admin, workId), 400, "Published work requires a cover");
+	it("editar a PUBLISHED sin recursos previos ni nuevos → 400", async () => {
+		await expectStatus(service.prepare("editWork", { publicationStatus: "PUBLISHED", expectedUpdatedAt: updatedAt.toISOString() }, [], admin, workId), 400, "Published work requires cover, banner and in-page cover");
 	});
-	it("editar a PUBLISHED con portada existente pasa", async () => {
-		repos.works.findForEdit.mockResolvedValue(makeWork({ coverAssetId: "asset" }));
+	it("editar a PUBLISHED con recursos existentes o exención histórica pasa", async () => {
+		repos.works.findForEdit.mockResolvedValue(makeWork({ coverAssetId: "cover", bannerAssetId: "banner", incapBannerAssetId: "inpage" }));
+		await expect(service.prepare("editWork", { publicationStatus: "PUBLISHED", expectedUpdatedAt: updatedAt.toISOString() }, [], admin, workId)).resolves.toBeDefined();
+		repos.works.findForEdit.mockResolvedValue(makeWork({ coverAssetId: "cover", legacyPublicationImagesExempt: true }));
 		await expect(service.prepare("editWork", { publicationStatus: "PUBLISHED", expectedUpdatedAt: updatedAt.toISOString() }, [], admin, workId)).resolves.toBeDefined();
 	});
 	it("crear capítulo PUBLISHED sin páginas → 400", async () => {
@@ -236,6 +250,11 @@ describe("validación de entrada e imágenes", () => {
 		expect(plan.objects.map(o => [o.position, o.fileIndex, o.sourcePathname])).toEqual([[1, undefined, "mi-obra-3f2b/Chapter-b1c2/aaaa-1.png"], [2, 0, undefined], [3, undefined, "mi-obra-3f2b/Chapter-b1c2/aaaa-2.png"]]);
 		expect(prepared.pagesRequired).toBe(true);
 		expect(plan.context.replacedPageAssetIds).toEqual(["asset-1", "asset-2"]);
+	});
+	it("una página final ordinaria cuenta para el límite de 1000", async () => {
+		const pages = Array.from({ length: 1000 }, (_, index) => makePage(`00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, index + 1));
+		repos.chapters.findForEdit.mockResolvedValue(makeChapter({ pages }));
+		await expectStatus(service.prepare("insert", { expectedVersion: 3, position: 1001 }, [pageImg], admin, workId, chapterId), 400, "Chapter exceeds 1000 pages");
 	});
 	it("reorder que no es permutación exacta → 400; permutación válida invierte el orden", async () => {
 		repos.chapters.findForEdit.mockResolvedValue(makeChapter({ pages: [makePage(pageA, 1), makePage(pageB, 2)] }));

@@ -1,0 +1,25 @@
+{
+  "version": "1.2.5",
+  "integration_state_schema": 1,
+  "installed_integrations": [
+    "codex",
+    "claude",
+    "opencode"
+  ],
+  "integration_settings": {
+    "codex": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "claude": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "opencode": {
+      "script": "ps",
+      "invoke_separator": "."
+    }
+  },
+  "integration": "codex",
+  "default_integration": "codex"
+}

@@ -1,5 +1,7 @@
 # Evaluación de agentes locales
 
+> **Nota histórica:** esta evaluación describe la configuración anterior con Codex (`.codex/`, `.agents/`). La configuración vigente para Claude Code está en `CLAUDE.md` y `.claude/` (agentes, hooks y skills).
+
 Evaluación estática realizada el 19 de octubre de 2026 sobre los ocho archivos
 `.codex/agents/*.toml`, `AGENTS.md`, el workflow y la plantilla de features.
 No se ejecutaron tareas de implementación con los agentes: estas conclusiones evalúan

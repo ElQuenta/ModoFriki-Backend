@@ -3,7 +3,7 @@ export interface ReadingPageInput { skip?: number; take?: number }
 export interface ReadingPage<T> { items: T[]; total: number; skip: number; take: number }
 export interface ReadingEventResult { counted: boolean; occurredAt: Date; isRead?: boolean }
 export interface ReadStateRecord { chapterId: string; isRead: boolean; firstReadAt: Date; lastReadAt: Date }
-export interface ReadingWorkSummary { id: string; title: string; slug: string; coverUrl: string | null }
+export interface ReadingWorkSummary { id: string; title: string; slug: string; coverUrl: string | null; thumbUrl: string | null }
 export interface FavoriteItem { work: ReadingWorkSummary; createdAt: Date }
 export interface ReadingHistoryItem extends ReadStateRecord { work: ReadingWorkSummary; chapter: { id: string; number: string; title: string | null } }
 export interface WorkReadingState { workId: string; isFavorite: boolean; scoreHalfStars: number | null; totalChapters: number; readChapters: number; chapters: ReadingPage<{ chapterId: string; isRead: boolean; firstReadAt: Date | null; lastReadAt: Date | null; number: string; title: string | null }> }

@@ -2,8 +2,10 @@ import { catchAndLogError, createLogger } from "../../utils/logger";
 import { randomUUID } from "node:crypto";
 import AppError from "../../utils/AppError";
 import { REPORT_REASONS, REPORT_STATUSES, type CommentReportRecord, type ReportReason, type ReportStatus } from "../../models/community/community.types";
-import { communityDependencies, communityTransaction, persistenceOperation, touchActiveComment, type CommunityDependencies } from "./community.persistence";
-import { cursorFilter, enumValue, pageOptions, pageResult, text, uuid, type CommunityPage, type CommunityPageOptions } from "./community.validation";
+import { communityDependencies, communityTransaction, filterAccessibleBatch, findAccessibleById, persistenceOperation, requireAccessibleComment, touchActiveComment, type CommunityDependencies } from "./community.persistence";
+import { cursorFilter, enumValue, pageOptions, text, uuid, type CommunityPage, type CommunityPageOptions } from "./community.validation";
+import type { ValidatedSanctionEvidence } from "../../types/sanctions.types";
+import { commentCreationRepository } from "./comment-creation.repository";
 
 const logger = createLogger("CommentReportRepository");
 
@@ -11,7 +13,7 @@ export class CommentReportRepository {
 	private readonly dependencies: CommunityDependencies;
 
 	constructor(options: Partial<CommunityDependencies> = {}) {
-		this.dependencies = communityDependencies(options);
+		this.dependencies = communityDependencies({ ...options, decisions: options.decisions ?? commentCreationRepository });
 	}
 
 	async create(input: { commentId: string; reporterId: string; reason: ReportReason; details?: string }): Promise<CommentReportRecord> {
@@ -21,6 +23,7 @@ export class CommentReportRepository {
 			const reporterId = uuid(input.reporterId, "reporterId");
 			const reason = enumValue(input.reason, REPORT_REASONS, "reason");
 			const details = input.details === undefined ? null : text(input.details, "details", 2000);
+			await requireAccessibleComment(this.dependencies, commentId);
 			return await communityTransaction(this.dependencies, async (session) => {
 				await touchActiveComment(this.dependencies, commentId, session);
 				const [report] = await this.dependencies.reports.create([{
@@ -42,7 +45,13 @@ export class CommentReportRepository {
 			return await persistenceOperation(async () => {
 				const rows = await this.dependencies.reports.find({ ...filter, ...cursorFilter(cursor) })
 					.sort({ createdAt: 1, _id: 1 }).limit(limit + 1).lean().exec();
-				return pageResult(rows, limit);
+				const examined = rows.slice(0, limit);
+				const comments = await this.dependencies.comments.find({ _id: { $in: examined.map((row) => row.commentId) } }).lean().exec();
+				const accessible = new Set((await filterAccessibleBatch(this.dependencies, comments)).map((comment) => comment._id));
+				const items = examined.filter((row) => accessible.has(row.commentId));
+				const hasMore = rows.length > limit;
+				const last = examined.at(-1);
+				return { items, hasMore, nextCursor: hasMore && last ? { createdAt: last.createdAt, id: last._id } : null };
 			});
 		} catch (error) {
 			return catchAndLogError(logger, error, "CommentReportRepository: listForModeration failed");
@@ -58,6 +67,8 @@ export class CommentReportRepository {
 			const status = enumValue(input.status, ["RESOLVED", "DISMISSED"] as const, "status");
 			const resolution = text(input.resolution, "resolution", 2000);
 			return await persistenceOperation(async () => {
+				const current = await this.dependencies.reports.findById(reportId).lean().exec();
+				if (!current || !await findAccessibleById(this.dependencies, current.commentId)) throw new AppError("Report not found", 404);
 				const report = await this.dependencies.reports.findOneAndUpdate(
 					{ _id: reportId, status: { $in: ["OPEN", "IN_REVIEW"] } },
 					{ $set: { status, resolution, reviewedAt: new Date(), reviewedById: moderatorId } },
@@ -68,6 +79,20 @@ export class CommentReportRepository {
 			});
 		} catch (error) {
 			return catchAndLogError(logger, error, "CommentReportRepository: resolveAsModerator failed");
+		}
+	}
+
+	async findReportEvidence(reportId: string): Promise<ValidatedSanctionEvidence | null> {
+		try {
+			const id = uuid(reportId, "reportId");
+			return await persistenceOperation(async () => {
+				const report = await this.dependencies.reports.findById(id).lean().exec();
+				if (!report) return null;
+				const comment = await findAccessibleById(this.dependencies, report.commentId);
+				return comment ? { reference: { type: "REPORT", id }, authorId: comment.authorId } : null;
+			});
+		} catch (error) {
+			return catchAndLogError(logger, error, "CommentReportRepository: findReportEvidence failed");
 		}
 	}
 }

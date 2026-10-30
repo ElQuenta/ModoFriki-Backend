@@ -1,4 +1,4 @@
-# Instrucciones generales para Codex
+# Instrucciones generales
 
 ## Contexto del proyecto
 

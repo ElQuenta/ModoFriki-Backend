@@ -10,7 +10,137 @@ servers:
   - url: /
 tags:
   - name: Health
+  - name: Admin
 paths:
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: Listar cuentas administrables
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: role, in: query, schema: { $ref: '#/components/schemas/Role' } }
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, SUSPENDED] } }
+        - { name: cursorCreatedAt, in: query, schema: { type: string, format: date-time } }
+        - { name: cursorId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: '#/components/responses/AdminUserPage' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+      description: cursorCreatedAt y cursorId deben enviarse juntos. Excluye cuentas eliminadas y datos privados.
+  /api/admin/users/{userId}:
+    get:
+      tags: [Admin]
+      summary: Obtener cuenta y token CAS actual
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+      responses:
+        "200": { $ref: '#/components/responses/AdminUserResult' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/admin/users/{userId}/role:
+    patch:
+      tags: [Admin]
+      summary: Cambiar rol BASIC o EDITOR
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [role, expectedUpdatedAt]
+              properties:
+                role: { type: string, enum: [BASIC, EDITOR] }
+                expectedUpdatedAt: { type: string, format: date-time, example: '2026-10-30T12:00:00.000Z' }
+      responses:
+        "200": { $ref: '#/components/responses/AdminUserResult' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+      description: La degradación a BASIC revoca y audita atómicamente todas las asignaciones activas.
+  /api/admin/users/{userId}/work-assignments:
+    get:
+      tags: [Admin]
+      summary: Listar asignaciones editoriales
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: includeRevoked, in: query, schema: { type: boolean, default: false } }
+        - { name: cursorCreatedAt, in: query, schema: { type: string, format: date-time } }
+        - { name: cursorId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: '#/components/responses/AdminAssignmentPage' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/admin/users/{userId}/work-assignments/{workId}:
+    put:
+      tags: [Admin]
+      summary: Asignar editor activo a una obra
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+        - $ref: '#/components/parameters/AdminWorkId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 0 }
+      responses:
+        "200": { $ref: '#/components/responses/AdminAssignmentResult' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/admin/users/{userId}/work-assignments/{workId}/revocation:
+    patch:
+      tags: [Admin]
+      summary: Revocar asignación editorial
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/AdminUserId'
+        - $ref: '#/components/parameters/AdminWorkId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        "200": { $ref: '#/components/responses/AdminAssignmentResult' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "409": { $ref: '#/components/responses/Conflict' }
+        "503": { $ref: '#/components/responses/ServiceUnavailable' }
   /api/works/{workId}/visits:
     post:
       tags:
@@ -724,6 +854,12 @@ paths:
       tags: [Community]
       summary: Crear raíz o respuesta de cualquier profundidad
       security: [{ bearerAuth: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: UUID v4 opcional; misma solicitud reproduce el comentario actual, otra solicitud con la misma clave devuelve 409.
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -747,6 +883,9 @@ paths:
         '201': { $ref: '#/components/responses/CommentResult' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/comments/{id}:
     parameters: [{ $ref: '#/components/parameters/Id' }]
@@ -903,29 +1042,35 @@ paths:
   /health:
     get:
       tags: [Health]
-      summary: Estado del servidor
+      summary: Estado del servidor y de las bases
+      description: Ejecuta SELECT 1 en PostgreSQL (máx. 3 s) y revisa la conexión de MongoDB. Pensado como health check de Render. No expone hosts ni credenciales.
       responses:
         "200":
-          description: Servidor activo
+          description: Servidor y bases disponibles
           content:
             application/json:
               schema:
                 type: object
                 required: [success, code, data]
                 properties:
-                  success:
-                    type: boolean
-                    example: true
-                  code:
-                    type: integer
-                    example: 200
-                  data:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/HealthStatus" }
+        "503":
+          description: Alguna base no responde
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, error, data]
+                properties:
+                  success: { type: boolean, example: false }
+                  code: { type: integer, example: 503 }
+                  error:
                     type: object
-                    required: [status]
                     properties:
-                      status:
-                        type: string
-                        example: ok
+                      message: { type: string, example: Service unavailable }
+                  data: { $ref: "#/components/schemas/HealthStatus" }
   /api/works:
     get:
       tags:
@@ -938,6 +1083,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { type: array, items: { $ref: "#/components/schemas/CatalogWork" } }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1045,10 +1199,13 @@ paths:
                 cover: &a9
                   type: string
                   format: binary
+                banner: *a9
                 inpagecover: *a9
               required: *a10
             encoding:
               cover:
+                contentType: image/jpeg, image/png, image/webp
+              banner:
                 contentType: image/jpeg, image/png, image/webp
               inpagecover:
                 contentType: image/jpeg, image/png, image/webp
@@ -1056,6 +1213,15 @@ paths:
         "201":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 201 }
+                  data: { $ref: "#/components/schemas/CatalogWork" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1089,6 +1255,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogWork" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1145,10 +1320,13 @@ paths:
                 genreIds: *a8
                 expectedUpdatedAt: *a11
                 cover: *a9
+                banner: *a9
                 inpagecover: *a9
               required: *a12
             encoding:
               cover:
+                contentType: image/jpeg, image/png, image/webp
+              banner:
                 contentType: image/jpeg, image/png, image/webp
               inpagecover:
                 contentType: image/jpeg, image/png, image/webp
@@ -1156,6 +1334,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogWork" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1210,10 +1397,13 @@ paths:
                 genreIds: *a8
                 expectedUpdatedAt: *a11
                 cover: *a9
+                banner: *a9
                 inpagecover: *a9
               required: *a13
             encoding:
               cover:
+                contentType: image/jpeg, image/png, image/webp
+              banner:
                 contentType: image/jpeg, image/png, image/webp
               inpagecover:
                 contentType: image/jpeg, image/png, image/webp
@@ -1221,6 +1411,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogWork" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1290,6 +1489,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { type: array, items: { $ref: "#/components/schemas/CatalogChapter" } }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1363,6 +1571,15 @@ paths:
         "201":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 201 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1400,6 +1617,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapterDetail" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1458,6 +1684,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1514,6 +1749,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1599,6 +1843,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1642,6 +1895,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1686,6 +1948,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1712,6 +1983,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { type: array, items: { $ref: "#/components/schemas/Taxonomy" } }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1753,6 +2033,15 @@ paths:
         "201":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 201 }
+                  data: { $ref: "#/components/schemas/Taxonomy" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1779,6 +2068,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { type: array, items: { $ref: "#/components/schemas/Taxonomy" } }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1820,6 +2118,15 @@ paths:
         "201":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 201 }
+                  data: { $ref: "#/components/schemas/Taxonomy" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1836,6 +2143,99 @@ paths:
           description: Contenido de imagen inv?lido
         "503":
           description: Blob no configurado
+  /api/auth/me/comment-restriction:
+    get:
+      tags: [Auth]
+      summary: Restricción vigente del usuario autenticado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Restricción propia; no expone actor, evidencia ni historial
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  code: { type: integer, enum: [200] }
+                  data: { $ref: '#/components/schemas/CommentRestriction' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/admin/users/{userId}/comment-sanctions:
+    parameters: [{ $ref: '#/components/parameters/AdminUserId' }]
+    get:
+      tags: [Admin]
+      summary: Historial de restricciones de comentarios
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CursorCreatedAt' }
+        - { $ref: '#/components/parameters/CursorId' }
+        - { $ref: '#/components/parameters/CursorLimit' }
+      responses:
+        '200':
+          description: Restricción actual independiente del cursor e historial paginado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  code: { type: integer, enum: [200] }
+                  data: { $ref: '#/components/schemas/CommentSanctionHistory' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      tags: [Admin]
+      summary: Imponer una restricción de comentarios
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason, endsAt]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 2000, description: Se recortan espacios exteriores; no puede quedar vacío. }
+                endsAt: { type: string, format: date-time, nullable: true, pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$', description: UTC con milisegundos; futuro según reloj SQL. null significa permanente. }
+                evidence: { $ref: '#/components/schemas/CommentSanctionEvidence' }
+      responses:
+        '201': { $ref: '#/components/responses/CommentSanctionCreated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/admin/users/{userId}/comment-sanctions/{sanctionId}/revocation:
+    parameters:
+      - { $ref: '#/components/parameters/AdminUserId' }
+      - name: sanctionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Admin]
+      summary: Revocar una restricción concreta
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '200': { $ref: '#/components/responses/CommentSanctionResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 components:
   securitySchemes:
     bearerAuth:
@@ -1878,7 +2278,173 @@ components:
         minimum: 1
         maximum: 50
         default: 20
+    AdminUserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AdminWorkId:
+      name: workId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
   schemas:
+    CommentSanctionEvidence:
+      type: object
+      additionalProperties: false
+      required: [type, id]
+      properties:
+        type: { type: string, enum: [COMMENT, REPORT] }
+        id: { type: string, format: uuid }
+    CommentRestriction:
+      type: object
+      required: [active, reason, endsAt, permanent]
+      properties:
+        active: { type: boolean }
+        reason: { type: string, nullable: true }
+        endsAt: { type: string, format: date-time, nullable: true }
+        permanent: { type: boolean }
+    CommentSanction:
+      type: object
+      required: [id, userId, reason, startsAt, endsAt, permanent, status, imposedById, revokedAt, revokedById, evidence]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        reason: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time, nullable: true }
+        permanent: { type: boolean }
+        status: { type: string, enum: [ACTIVE, EXPIRED, REVOKED] }
+        imposedById: { type: string, format: uuid }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        revokedById: { type: string, format: uuid, nullable: true }
+        evidence: { allOf: [{ $ref: '#/components/schemas/CommentSanctionEvidence' }], nullable: true }
+    CommentSanctionHistory:
+      type: object
+      required: [current, history]
+      properties:
+        current: { allOf: [{ $ref: '#/components/schemas/CommentSanction' }], nullable: true }
+        history:
+          type: object
+          required: [items, hasMore, nextCursor]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/CommentSanction' } }
+            hasMore: { type: boolean }
+            nextCursor:
+              type: object
+              nullable: true
+              required: [createdAt, id]
+              properties:
+                createdAt: { type: string, format: date-time }
+                id: { type: string, format: uuid }
+    Taxonomy:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+    CatalogMediaAsset:
+      type: object
+      required: [id, url, contentType, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        width: { type: integer, nullable: true }
+        height: { type: integer, nullable: true }
+        status: { type: string, enum: [AVAILABLE, DELETING] }
+        createdAt: { type: string, format: date-time }
+    CatalogWork:
+      type: object
+      description: Obra del catálogo. Nunca incluye campos internos (createdById, updatedById, deletedAt, *AssetId, pathname, sizeBytes).
+      required: [id, title, slug, synopsis, typeId, publicationStatus, releaseStatus, createdAt, updatedAt, publishedAt, visitsCount, type, coverAsset, bannerAsset, coverThumbAsset, incapBannerAsset, alternativeTitles, genres]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        slug: { type: string }
+        synopsis: { type: string }
+        typeId: { type: string, format: uuid }
+        publicationStatus: { type: string, enum: [DRAFT, PUBLISHED] }
+        releaseStatus: { type: string, enum: [ONGOING, COMPLETED, HIATUS, CANCELLED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, description: "Token de concurrencia: enviarlo como expectedUpdatedAt al editar o borrar." }
+        publishedAt: { type: string, format: date-time, nullable: true }
+        visitsCount: { type: integer }
+        type: { $ref: "#/components/schemas/Taxonomy" }
+        coverAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true }
+        bannerAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true, description: "Banner de ficha; no se incluye en la secuencia de lectura." }
+        coverThumbAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true, description: "Miniatura WebP de 300 px; null hasta que corre media:thumbnails." }
+        incapBannerAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true }
+        alternativeTitles:
+          type: array
+          items:
+            type: object
+            required: [id, workId, title, normalizedTitle]
+            properties:
+              id: { type: string, format: uuid }
+              workId: { type: string, format: uuid }
+              title: { type: string }
+              normalizedTitle: { type: string }
+        genres:
+          type: array
+          items:
+            type: object
+            required: [id, workId, genreId, genre]
+            properties:
+              id: { type: string, format: uuid }
+              workId: { type: string, format: uuid }
+              genreId: { type: string, format: uuid }
+              genre: { $ref: "#/components/schemas/Taxonomy" }
+    CatalogPage:
+      type: object
+      description: "Página editorial ordinaria. Un mensaje final, si existe, es simplemente la última página de esta colección."
+      required: [id, chapterId, position, asset]
+      properties:
+        id: { type: string, format: uuid }
+        chapterId: { type: string, format: uuid }
+        position: { type: integer, minimum: 1 }
+        asset: { $ref: "#/components/schemas/CatalogMediaAsset" }
+    CatalogChapter:
+      type: object
+      required: [id, workId, number, title, kind, status, version, createdAt, updatedAt, publishedAt, pages]
+      properties:
+        id: { type: string, format: uuid }
+        workId: { type: string, format: uuid }
+        number: { type: string, description: "Decimal como string (hasta 3 decimales)." }
+        title: { type: string, nullable: true }
+        kind: { type: string, enum: [NORMAL, EXTRA, ANNOUNCEMENT] }
+        status: { type: string, enum: [DRAFT, PUBLISHED] }
+        version: { type: integer, description: "Token de concurrencia: enviarlo como expectedVersion." }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        publishedAt: { type: string, format: date-time, nullable: true }
+        pages: { type: array, items: { $ref: "#/components/schemas/CatalogPage" } }
+    CatalogChapterDetail:
+      allOf:
+        - { $ref: '#/components/schemas/CatalogChapter' }
+        - type: object
+          required: [readingImages]
+          properties:
+            readingImages: { $ref: '#/components/schemas/ChapterReadingImages' }
+    ChapterReadingImages:
+      type: array
+      description: Apertura compartida opcional seguida por las páginas editoriales; pages no se modifica.
+      items:
+        type: object
+        required: [kind, asset, pageId, position]
+        properties:
+          kind: { type: string, enum: [WORK_OPENING, PAGE] }
+          asset: { $ref: '#/components/schemas/CatalogMediaAsset' }
+          pageId: { type: string, format: uuid, nullable: true }
+          position: { type: integer, minimum: 1, nullable: true }
+    HealthStatus:
+      type: object
+      required: [status, postgres, mongo]
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        postgres: { type: string, enum: [ok, down] }
+        mongo: { type: string, enum: [ok, down] }
     ReadingEventInput:
       type: object
       properties:
@@ -1925,6 +2491,10 @@ components:
         coverUrl:
           type: string
           nullable: true
+        thumbUrl:
+          type: string
+          nullable: true
+          description: Miniatura WebP de 300 px para tarjetas; null hasta que corre media:thumbnails (usar coverUrl).
     ReadingFavorite:
       type: object
       properties:
@@ -2172,6 +2742,7 @@ components:
           maximum: 5
     WorkRef:
       type: object
+      required: [id, slug, title, coverUrl, thumbUrl]
       properties:
         id:
           type: string
@@ -2183,8 +2754,13 @@ components:
         coverUrl:
           type: string
           nullable: true
+        thumbUrl:
+          type: string
+          nullable: true
+          description: Miniatura WebP de 300 px para tarjetas; null hasta que corre media:thumbnails (usar coverUrl).
     LatestChapter:
       type: object
+      required: [id, workId, number, title, kind, publishedAt, work]
       properties:
         id:
           type: string
@@ -2208,6 +2784,7 @@ components:
           $ref: "#/components/schemas/WorkRef"
     LatestChapterPage:
       type: object
+      required: [items, total, page, limit]
       properties:
         items:
           type: array
@@ -2344,6 +2921,57 @@ components:
             reviewedAt: { type: string, format: date-time, nullable: true }
             resolution: { type: string, nullable: true }
             updatedAt: { type: string, format: date-time }
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required: [id, username, role, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { type: string, enum: [ACTIVE, SUSPENDED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AdminAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, workId, editorId, assignedById, assignedAt, createdAt, revokedAt, version]
+      properties:
+        id: { type: string, format: uuid }
+        workId: { type: string, format: uuid }
+        editorId: { type: string, format: uuid }
+        assignedById: { type: string, format: uuid }
+        assignedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time, description: Cursor immutable de la primera asignación }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        version: { type: integer, minimum: 1 }
+    AdminCursor:
+      type: object
+      additionalProperties: false
+      required: [createdAt, id]
+      properties:
+        createdAt: { type: string, format: date-time }
+        id: { type: string, format: uuid }
+    AdminUserPage:
+      type: object
+      additionalProperties: false
+      required: [items, hasMore, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AdminUser' } }
+        hasMore: { type: boolean }
+        nextCursor:
+          allOf: [{ $ref: '#/components/schemas/AdminCursor' }]
+          nullable: true
+    AdminAssignmentPage:
+      type: object
+      additionalProperties: false
+      required: [items, hasMore, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AdminAssignment' } }
+        hasMore: { type: boolean }
+        nextCursor:
+          allOf: [{ $ref: '#/components/schemas/AdminCursor' }]
+          nullable: true
     ErrorResponse:
       type: object
       required: [success, code, error]
@@ -2388,6 +3016,60 @@ components:
       type: string
       enum: [LEYENDO, POR_LEER, COMPLETADO, PAUSA]
   responses:
+    CommentSanctionResult:
+      description: Sanción concreta; revocación idempotente sin alterar una posterior
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, code, data]
+            properties:
+              success: { type: boolean, enum: [true] }
+              code: { type: integer, enum: [200] }
+              data: { $ref: '#/components/schemas/CommentSanction' }
+    CommentSanctionCreated:
+      description: Sanción y auditoría confirmadas atómicamente
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, code, data]
+            properties:
+              success: { type: boolean, enum: [true] }
+              code: { type: integer, enum: [201] }
+              data: { $ref: '#/components/schemas/CommentSanction' }
+    AdminUserResult:
+      description: Cuenta administrativa sin email, normalizados ni credenciales
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/AdminUser' } }
+    AdminUserPage:
+      description: Página por createdAt e id de cuentas no eliminadas
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/AdminUserPage' } }
+    AdminAssignmentResult:
+      description: Relación versionada; assignedAt cambia al reasignar y createdAt permanece estable
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/AdminAssignment' } }
+    AdminAssignmentPage:
+      description: Página por createdAt e id de asignaciones editoriales
+      content:
+        application/json:
+          schema:
+            allOf:
+              - { $ref: '#/components/schemas/SuccessEnvelope' }
+              - properties: { data: { $ref: '#/components/schemas/AdminAssignmentPage' } }
     AuthResult:
       description: Identidad pública y JWT HS256 válido siete días
       content:
@@ -2485,3 +3167,14 @@ components:
             code: 409
             error:
               message: Email already in use
+    ServiceUnavailable:
+      description: Persistencia administrativa temporalmente no disponible
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            code: 503
+            error:
+              message: Administrative persistence unavailable
