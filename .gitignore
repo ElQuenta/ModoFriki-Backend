@@ -46,3 +46,6 @@ Desktop.ini
 
 # Claude Code (config personal)
 .claude/settings.local.json
+
+# Reportes de newman (pruebas de API)
+postman/reports/
