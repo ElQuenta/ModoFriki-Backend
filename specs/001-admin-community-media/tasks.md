@@ -148,6 +148,13 @@
 
 **Checkpoint**: US4 es principalmente regresión y contrato sobre una capacidad existente; no justifica crear nuevas entidades ni dependencias.
 
+### Registro de ejecución US4
+
+- [X] T056 — Regresión HTTP y de servicio para apertura opcional, última página ordinaria y límites editoriales.
+- [X] T057 — Contrato API/OpenAPI documenta el cierre como `pages` normal, sin campos ni recursos especiales.
+- [X] T058 — Flujo existente de reemplazo, inserción, reordenamiento, permisos y CAS verificado contra PostgreSQL desechable.
+- [X] T059 — FR-017 revisado y evidencia registrada en `validation/us4.md`.
+
 ## Phase 7: Polish — verificación e integración transversal
 
 **Objetivo**: Cerrar evidencias, revisión y preparación del despliegue sin integrar automáticamente en QA ni tocar producción.
