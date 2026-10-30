@@ -41,6 +41,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx prisma generate
       # Levanta docker-compose.test.yml, migra, seed y carga postman/fixtures (nunca Render).
       - name: Entorno de pruebas
         run: npm run test:env:up
