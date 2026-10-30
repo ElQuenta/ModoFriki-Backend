@@ -1,6 +1,7 @@
 // Entorno desechable de pruebas (Windows/macOS/Linux). Nunca toca la DB compartida de Render.
 //   node postman/test-env.mjs up      → levanta Postgres + Mongo, migra, seed y carga fixtures
 //   node postman/test-env.mjs server  → backend en :3000 apuntando a esas bases
+//   node postman/test-env.mjs integration → tests de integración (Vitest) contra esas bases
 //   node postman/test-env.mjs down    → borra contenedores y volúmenes
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -37,6 +38,9 @@ const actions = {
 		spawn("npx", ["tsx", "src/index.ts"], { stdio: "inherit", env, shell: process.platform === "win32" })
 			.on("exit", code => process.exit(code ?? 0));
 	},
+	integration() {
+		run("npx", ["vitest", "run", "--config", "vitest.integration.config.ts"]);
+	},
 	down() {
 		run("docker", [...compose, "down", "-v"]);
 	}
@@ -44,7 +48,7 @@ const actions = {
 
 const action = actions[process.argv[2]];
 if (!action) {
-	console.error("Uso: node postman/test-env.mjs <up|server|down>");
+	console.error("Uso: node postman/test-env.mjs <up|server|integration|down>");
 	process.exit(1);
 }
 action();
