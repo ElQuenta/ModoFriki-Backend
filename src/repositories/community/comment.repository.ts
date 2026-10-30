@@ -2,8 +2,9 @@ import { catchAndLogError, createLogger } from "../../utils/logger";
 import { randomUUID } from "node:crypto";
 import AppError from "../../utils/AppError";
 import { COMMENT_TARGET_TYPES, type CommentRecord, type CommentTargetType } from "../../models/community/community.types";
-import { communityDependencies, communityTransaction, persistenceOperation, touchActiveComment, type CommunityDependencies } from "./community.persistence";
-import { cursorFilter, enumValue, pageOptions, pageResult, revision, text, uuid, type CommunityPage, type CommunityPageOptions } from "./community.validation";
+import { communityDependencies, communityTransaction, filterAccessibleBatch, findAccessibleById, persistenceOperation, requireAccessibleComment, touchActiveComment, type CommunityDependencies } from "./community.persistence";
+import { cursorFilter, enumValue, pageOptions, revision, text, uuid, type CommunityPage, type CommunityPageOptions } from "./community.validation";
+import type { ValidatedSanctionEvidence } from "../../types/sanctions.types";
 
 const logger = createLogger("CommentRepository");
 
@@ -20,6 +21,10 @@ export interface CreateReplyInput {
 	bodyMarkdown: string;
 }
 
+export interface StageRootCommentInput extends CreateRootCommentInput { operationId: string }
+export interface StageReplyCommentInput extends CreateReplyInput { operationId: string }
+type StageRootCanonical = Pick<CommentRecord, "_id" | "creationOperationId" | "authorId" | "targetType" | "targetId" | "parentCommentId" | "rootCommentId" | "bodyMarkdown">;
+
 export class CommentRepository {
 	private readonly dependencies: CommunityDependencies;
 
@@ -28,52 +33,123 @@ export class CommentRepository {
 	}
 
 	async createRoot(input: CreateRootCommentInput): Promise<CommentRecord> {
-		try {
-			logger.debug("createRoot");
-			const authorId = uuid(input.authorId, "authorId");
-			const targetId = uuid(input.targetId, "targetId");
-			const targetType = enumValue(input.targetType, COMMENT_TARGET_TYPES, "targetType");
-			const bodyMarkdown = text(input.bodyMarkdown, "bodyMarkdown", 10000);
-			const id = randomUUID();
-			return await persistenceOperation(async () => {
-				const comment = await this.dependencies.comments.create({
-					_id: id, authorId, targetId, targetType, parentCommentId: null,
-					rootCommentId: id, bodyMarkdown, status: "ACTIVE", revision: 0
-				});
-				return comment.toObject();
-			});
-		} catch (error) {
-			return catchAndLogError(logger, error, "CommentRepository: createRoot failed");
-		}
+		return this.stageRoot({ ...input, operationId: randomUUID() });
 	}
 
 	async createReply(input: CreateReplyInput): Promise<CommentRecord> {
+		return this.stageReply({ ...input, operationId: randomUUID() });
+	}
+
+	async stageRoot(input: StageRootCommentInput): Promise<CommentRecord> {
 		try {
-			logger.debug("createReply");
+			logger.debug("stageRoot");
+			const operationId = uuid(input.operationId, "operationId");
+			const expected: StageRootCanonical = {
+				_id: operationId, creationOperationId: operationId,
+				authorId: uuid(input.authorId, "authorId"),
+				targetType: enumValue(input.targetType, COMMENT_TARGET_TYPES, "targetType"),
+				targetId: uuid(input.targetId, "targetId"), parentCommentId: null, rootCommentId: operationId,
+				bodyMarkdown: text(input.bodyMarkdown, "bodyMarkdown", 10000)
+			};
+			return await persistenceOperation(async () => {
+				const recovered = await this.recoverStaged(expected);
+				if (recovered) return recovered;
+				try {
+					const now = new Date();
+					const comment = new this.dependencies.comments({
+						...expected, status: "ACTIVE", revision: 0, createdAt: now, updatedAt: now
+					});
+					await comment.validate();
+					await this.dependencies.comments.collection.insertOne(
+						comment.toObject() as never,
+						{ writeConcern: { w: "majority" } }
+					);
+					const durable = await this.recoverStaged(expected);
+					if (!durable) throw new AppError("Durable comment staging could not be verified", 503);
+					return durable;
+				} catch (error) {
+					const afterFailure = await this.recoverStaged(expected);
+					if (afterFailure) return afterFailure;
+					throw error;
+				}
+			});
+		} catch (error) {
+			return catchAndLogError(logger, error, "CommentRepository: stageRoot failed");
+		}
+	}
+
+	async stageReply(input: StageReplyCommentInput): Promise<CommentRecord> {
+		try {
+			logger.debug("stageReply");
+			const operationId = uuid(input.operationId, "operationId");
 			const authorId = uuid(input.authorId, "authorId");
 			const parentCommentId = uuid(input.parentCommentId, "parentCommentId");
 			const bodyMarkdown = text(input.bodyMarkdown, "bodyMarkdown", 10000);
-			return await communityTransaction(this.dependencies, async (session) => {
-				const parent = await touchActiveComment(this.dependencies, parentCommentId, session);
-				const [comment] = await this.dependencies.comments.create([{
-					_id: randomUUID(), authorId, parentCommentId, rootCommentId: parent.rootCommentId,
-					targetType: parent.targetType, targetId: parent.targetId, bodyMarkdown,
-					status: "ACTIVE", revision: 0
-				}], { session });
-				return comment.toObject();
+			return await persistenceOperation(async () => {
+				const existing = await this.readStaged(operationId);
+				if (existing) return this.assertReplyReplay(existing, { operationId, authorId, parentCommentId, bodyMarkdown });
+				await requireAccessibleComment(this.dependencies, parentCommentId);
+				try {
+					return await communityTransaction(this.dependencies, async (session) => {
+						const parent = await touchActiveComment(this.dependencies, parentCommentId, session);
+						const [comment] = await this.dependencies.comments.create([{
+							_id: operationId, creationOperationId: operationId, authorId, parentCommentId,
+							rootCommentId: parent.rootCommentId, targetType: parent.targetType, targetId: parent.targetId,
+							bodyMarkdown, status: "ACTIVE", revision: 0
+						}], { session });
+						return comment.toObject();
+					});
+				} catch (error) {
+					const recovered = await this.readStaged(operationId);
+					if (recovered) return this.assertReplyReplay(recovered, { operationId, authorId, parentCommentId, bodyMarkdown });
+					throw error;
+				}
 			});
 		} catch (error) {
-			return catchAndLogError(logger, error, "CommentRepository: createReply failed");
+			return catchAndLogError(logger, error, "CommentRepository: stageReply failed");
 		}
+	}
+
+	private async readStaged(operationId: string): Promise<CommentRecord | null> {
+		return this.dependencies.comments.findById(operationId).read("primary").readConcern("majority").lean().exec();
+	}
+
+	private async recoverStaged(expected: StageRootCanonical): Promise<CommentRecord | null> {
+		const existing = await this.readStaged(expected._id);
+		if (!existing) return null;
+		const same = existing.creationOperationId === expected.creationOperationId
+			&& existing.authorId === expected.authorId && existing.targetType === expected.targetType
+			&& existing.targetId === expected.targetId && existing.parentCommentId === expected.parentCommentId
+			&& existing.rootCommentId === expected.rootCommentId && existing.bodyMarkdown === expected.bodyMarkdown;
+		if (!same) throw new AppError("Idempotency key conflicts with staged comment", 409);
+		return existing;
+	}
+
+	private assertReplyReplay(existing: CommentRecord, expected: { operationId: string; authorId: string; parentCommentId: string; bodyMarkdown: string }): CommentRecord {
+		if (existing.creationOperationId !== expected.operationId || existing.authorId !== expected.authorId
+			|| existing.parentCommentId !== expected.parentCommentId || existing.bodyMarkdown !== expected.bodyMarkdown) {
+			throw new AppError("Idempotency key conflicts with staged comment", 409);
+		}
+		return existing;
 	}
 
 	async findById(commentId: string): Promise<CommentRecord | null> {
 		try {
 			logger.debug("findById");
 			const id = uuid(commentId, "commentId");
-			return await persistenceOperation(() => this.dependencies.comments.findById(id).lean().exec());
+			return await persistenceOperation(() => findAccessibleById(this.dependencies, id));
 		} catch (error) {
 			return catchAndLogError(logger, error, "CommentRepository: findById failed");
+		}
+	}
+
+	async findCommentEvidence(commentId: string): Promise<ValidatedSanctionEvidence | null> {
+		try {
+			const id = uuid(commentId, "commentId");
+			const comment = await persistenceOperation(() => findAccessibleById(this.dependencies, id));
+			return comment ? { reference: { type: "COMMENT", id }, authorId: comment.authorId } : null;
+		} catch (error) {
+			return catchAndLogError(logger, error, "CommentRepository: findCommentEvidence failed");
 		}
 	}
 
@@ -114,7 +190,11 @@ export class CommentRepository {
 			return await persistenceOperation(async () => {
 				const rows = await this.dependencies.comments.find({ ...filter, ...cursorFilter(cursor) })
 					.sort({ createdAt: 1, _id: 1 }).limit(limit + 1).lean().exec();
-				return pageResult(rows, limit);
+				const examined = rows.slice(0, limit);
+				const items = await filterAccessibleBatch(this.dependencies, examined);
+				const hasMore = rows.length > limit;
+				const last = examined.at(-1);
+				return { items, hasMore, nextCursor: hasMore && last ? { createdAt: last.createdAt, id: last._id } : null };
 			});
 		} catch (error) {
 			return catchAndLogError(logger, error, "CommentRepository: list failed");
@@ -128,6 +208,7 @@ export class CommentRepository {
 			const authorId = uuid(input.authorId, "authorId");
 			const bodyMarkdown = text(input.bodyMarkdown, "bodyMarkdown", 10000);
 			const expectedRevision = revision(input.expectedRevision);
+			if (!await findAccessibleById(this.dependencies, commentId)) throw new AppError("Comment not found", 404);
 			return await persistenceOperation(async () => {
 				const comment = await this.dependencies.comments.findOneAndUpdate(
 					{ _id: commentId, authorId, status: "ACTIVE", revision: expectedRevision },
@@ -165,6 +246,7 @@ export class CommentRepository {
 	private async softDelete(commentId: string, actorId: string, ownership: { authorId?: string }): Promise<CommentRecord> {
 		try {
 			logger.debug("softDelete");
+			if (!await findAccessibleById(this.dependencies, commentId)) throw new AppError("Comment not found", 404);
 			return await persistenceOperation(async () => {
 				const comment = await this.dependencies.comments.findOneAndUpdate(
 					{ _id: commentId, status: "ACTIVE", ...ownership },

@@ -5,6 +5,7 @@ const immutableUuid = { type: String, required: true, immutable: true, match: UU
 
 export const commentSchema = new Schema<CommentRecord>({
 	_id: immutableUuid,
+	creationOperationId: { type: String, required: false, immutable: true, match: UUID_PATTERN },
 	authorId: immutableUuid,
 	targetType: { type: String, enum: COMMENT_TARGET_TYPES, required: true, immutable: true },
 	targetId: immutableUuid,
@@ -28,6 +29,9 @@ export const commentSchema = new Schema<CommentRecord>({
 }, { collection: "comments", timestamps: true, versionKey: false, strict: "throw" });
 
 commentSchema.pre("validate", function () {
+	if (this.creationOperationId !== undefined && this.creationOperationId !== this._id) {
+		this.invalidate("creationOperationId", "Creation operation must match the comment id");
+	}
 	if (this.parentCommentId === null && this.rootCommentId !== this._id) {
 		this.invalidate("rootCommentId", "A root comment must reference itself");
 	}
@@ -39,6 +43,10 @@ commentSchema.pre("validate", function () {
 commentSchema.index({ targetType: 1, targetId: 1, parentCommentId: 1, createdAt: 1, _id: 1 });
 commentSchema.index({ parentCommentId: 1, createdAt: 1, _id: 1 });
 commentSchema.index({ rootCommentId: 1, createdAt: 1, _id: 1 });
+commentSchema.index(
+	{ creationOperationId: 1 },
+	{ unique: true, partialFilterExpression: { creationOperationId: { $type: "string" } } }
+);
 
 export const CommentModel: Model<CommentRecord> = (mongoose.models.CommunityComment as Model<CommentRecord> | undefined)
 	?? mongoose.model<CommentRecord>("CommunityComment", commentSchema);
