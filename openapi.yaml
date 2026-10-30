@@ -944,6 +944,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { type: array, items: { $ref: "#/components/schemas/CatalogWork" } }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1062,6 +1071,15 @@ paths:
         "201":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 201 }
+                  data: { $ref: "#/components/schemas/CatalogWork" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1095,6 +1113,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogWork" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1162,6 +1189,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogWork" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1227,6 +1263,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogWork" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1296,6 +1341,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { type: array, items: { $ref: "#/components/schemas/CatalogChapter" } }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1369,6 +1423,15 @@ paths:
         "201":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 201 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1406,6 +1469,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1464,6 +1536,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1520,6 +1601,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1605,6 +1695,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1648,6 +1747,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1692,6 +1800,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { $ref: "#/components/schemas/CatalogChapter" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1718,6 +1835,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { type: array, items: { $ref: "#/components/schemas/Taxonomy" } }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1759,6 +1885,15 @@ paths:
         "201":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 201 }
+                  data: { $ref: "#/components/schemas/Taxonomy" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1785,6 +1920,15 @@ paths:
         "200":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 200 }
+                  data: { type: array, items: { $ref: "#/components/schemas/Taxonomy" } }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1826,6 +1970,15 @@ paths:
         "201":
           description: Respuesta { success, code, data }; metadatos BigInt y Decimal como
             strings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, code, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  code: { type: integer, example: 201 }
+                  data: { $ref: "#/components/schemas/Taxonomy" }
         "400":
           description: Entrada inv?lida
         "401":
@@ -1885,6 +2038,87 @@ components:
         maximum: 50
         default: 20
   schemas:
+    Taxonomy:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+    CatalogMediaAsset:
+      type: object
+      required: [id, url, contentType, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        width: { type: integer, nullable: true }
+        height: { type: integer, nullable: true }
+        status: { type: string, enum: [AVAILABLE, DELETING] }
+        createdAt: { type: string, format: date-time }
+    CatalogWork:
+      type: object
+      description: Obra del catálogo. Nunca incluye campos internos (createdById, updatedById, deletedAt, *AssetId, pathname, sizeBytes).
+      required: [id, title, slug, synopsis, typeId, publicationStatus, releaseStatus, createdAt, updatedAt, publishedAt, visitsCount, type, coverAsset, coverThumbAsset, incapBannerAsset, alternativeTitles, genres]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        slug: { type: string }
+        synopsis: { type: string }
+        typeId: { type: string, format: uuid }
+        publicationStatus: { type: string, enum: [DRAFT, PUBLISHED] }
+        releaseStatus: { type: string, enum: [ONGOING, COMPLETED, HIATUS, CANCELLED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, description: "Token de concurrencia: enviarlo como expectedUpdatedAt al editar o borrar." }
+        publishedAt: { type: string, format: date-time, nullable: true }
+        visitsCount: { type: integer }
+        type: { $ref: "#/components/schemas/Taxonomy" }
+        coverAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true }
+        coverThumbAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true, description: "Miniatura WebP de 300 px; null hasta que corre media:thumbnails." }
+        incapBannerAsset: { type: object, allOf: [{ $ref: "#/components/schemas/CatalogMediaAsset" }], nullable: true }
+        alternativeTitles:
+          type: array
+          items:
+            type: object
+            required: [id, workId, title, normalizedTitle]
+            properties:
+              id: { type: string, format: uuid }
+              workId: { type: string, format: uuid }
+              title: { type: string }
+              normalizedTitle: { type: string }
+        genres:
+          type: array
+          items:
+            type: object
+            required: [id, workId, genreId, genre]
+            properties:
+              id: { type: string, format: uuid }
+              workId: { type: string, format: uuid }
+              genreId: { type: string, format: uuid }
+              genre: { $ref: "#/components/schemas/Taxonomy" }
+    CatalogPage:
+      type: object
+      required: [id, chapterId, position, asset]
+      properties:
+        id: { type: string, format: uuid }
+        chapterId: { type: string, format: uuid }
+        position: { type: integer, minimum: 1 }
+        asset: { $ref: "#/components/schemas/CatalogMediaAsset" }
+    CatalogChapter:
+      type: object
+      required: [id, workId, number, title, kind, status, version, createdAt, updatedAt, publishedAt, pages]
+      properties:
+        id: { type: string, format: uuid }
+        workId: { type: string, format: uuid }
+        number: { type: string, description: "Decimal como string (hasta 3 decimales)." }
+        title: { type: string, nullable: true }
+        kind: { type: string, enum: [NORMAL, EXTRA, ANNOUNCEMENT] }
+        status: { type: string, enum: [DRAFT, PUBLISHED] }
+        version: { type: integer, description: "Token de concurrencia: enviarlo como expectedVersion." }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        publishedAt: { type: string, format: date-time, nullable: true }
+        pages: { type: array, items: { $ref: "#/components/schemas/CatalogPage" } }
     HealthStatus:
       type: object
       required: [status, postgres, mongo]
