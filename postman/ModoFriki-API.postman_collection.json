@@ -551,7 +551,8 @@
 									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
 									"const items = pm.response.json().data;",
 									"pm.test(\"incluye la obra publicada\", () => pm.expect(items.map(w => w.id)).to.include(pm.collectionVariables.get(\"workId\")));",
-									"pm.test(\"no incluye borradores\", () => pm.expect(items.map(w => w.id)).to.not.include(pm.collectionVariables.get(\"draftWorkId\")));"
+									"pm.test(\"no incluye borradores\", () => pm.expect(items.map(w => w.id)).to.not.include(pm.collectionVariables.get(\"draftWorkId\")));",
+									"pm.test(\"no expone campos internos\", () => { const t = pm.response.text(); [\"createdById\", \"updatedById\", \"deletedAt\", \"pathname\", \"sizeBytes\", \"coverAssetId\", \"incapBannerAssetId\", \"assetId\"].forEach(k => pm.expect(t).to.not.include(`\"${k}\"`)); });"
 								]
 							}
 						}
@@ -621,7 +622,8 @@
 								"exec": [
 									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
 									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
-									"pm.test(\"es la obra pedida\", () => pm.expect(pm.response.json().data.id).to.eql(pm.collectionVariables.get(\"workId\")));"
+									"pm.test(\"es la obra pedida\", () => pm.expect(pm.response.json().data.id).to.eql(pm.collectionVariables.get(\"workId\")));",
+									"pm.test(\"no expone campos internos\", () => { const t = pm.response.text(); [\"createdById\", \"updatedById\", \"deletedAt\", \"pathname\", \"sizeBytes\", \"coverAssetId\", \"incapBannerAssetId\", \"assetId\"].forEach(k => pm.expect(t).to.not.include(`\"${k}\"`)); });"
 								]
 							}
 						}
@@ -711,7 +713,8 @@
 								"exec": [
 									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
 									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
-									"pm.test(\"tiene capítulos\", () => pm.expect(pm.response.json().data.length).to.be.above(0));"
+									"pm.test(\"tiene capítulos\", () => pm.expect(pm.response.json().data.length).to.be.above(0));",
+									"pm.test(\"no expone campos internos\", () => { const t = pm.response.text(); [\"createdById\", \"updatedById\", \"deletedAt\", \"pathname\", \"sizeBytes\", \"coverAssetId\", \"incapBannerAssetId\", \"assetId\"].forEach(k => pm.expect(t).to.not.include(`\"${k}\"`)); });"
 								]
 							}
 						}
@@ -743,7 +746,8 @@
 									"pm.test(\"status 200\", () => pm.response.to.have.status(200));",
 									"pm.test(\"sobre {success, code}\", () => { const b = pm.response.json(); pm.expect(b.success).to.eql(true); pm.expect(b.code).to.eql(200); });",
 									"const d = pm.response.json().data;",
-									"pm.test(\"tiene páginas\", () => pm.expect(d.pages.length).to.be.above(0));"
+									"pm.test(\"tiene páginas\", () => pm.expect(d.pages.length).to.be.above(0));",
+									"pm.test(\"no expone campos internos\", () => { const t = pm.response.text(); [\"createdById\", \"updatedById\", \"deletedAt\", \"pathname\", \"sizeBytes\", \"coverAssetId\", \"incapBannerAssetId\", \"assetId\"].forEach(k => pm.expect(t).to.not.include(`\"${k}\"`)); });"
 								]
 							}
 						}
