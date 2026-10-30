@@ -71,7 +71,7 @@ export class WorkRepository implements WorkRepositoryContract {
    if (+current.updatedAt !== +expectedUpdatedAt) throw new AppError("Work was modified; reload it", 409);
    await tx.chapterPage.deleteMany({ where: { chapter: { workId: id } } });
    await tx.chapter.updateMany({ where: { workId: id, deletedAt: null }, data: { deletedAt: new Date(), status: "DRAFT", updatedById: actor.id, version: { increment: 1 } } });
-   await tx.work.update({ where: { id }, data: { deletedAt: new Date(), publicationStatus: "DRAFT", coverAssetId: null, bannerAssetId: null, incapBannerAssetId: null, updatedById: actor.id } });
+   await tx.work.update({ where: { id }, data: { deletedAt: new Date(), publicationStatus: "DRAFT", coverAssetId: null, bannerAssetId: null, incapBannerAssetId: null, coverThumbAssetId: null, updatedById: actor.id } });
   }); } catch (error) { return catchAndLogError(logger, persistenceError(error), "Unable to remove work"); }
  }
  async abortReservation(id: string, actorId: string) {
