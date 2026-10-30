@@ -8,8 +8,12 @@ import { createLogger } from "./utils/logger";
 const logger = createLogger("Server");
 const port = config.port;
 
-app.listen(port, async () => {
+// Connect first, listen after: no request arrives before the databases are ready.
+// Both connectors exit(1) on failure, so Render restarts the service.
+async function start() {
 	await connectDatabase();
 	await connectMongoDB();
-	logger.http(`Server running on http://localhost:${port}`);
-});
+	app.listen(port, () => logger.http(`Server running on http://localhost:${port}`));
+}
+
+void start();

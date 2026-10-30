@@ -15,10 +15,13 @@
     "prisma:seed": "prisma db seed",
     "prisma:studio": "prisma studio",
     "test": "vitest run",
+    "test:integration": "node postman/test-env.mjs integration",
     "test:env:up": "node postman/test-env.mjs up",
     "test:env:server": "node postman/test-env.mjs server",
     "test:env:down": "node postman/test-env.mjs down",
-    "test:api": "newman run postman/ModoFriki-API.postman_collection.json -e postman/local.postman_environment.json --reporters cli,json --reporter-json-export postman/reports/last-run.json"
+    "test:api": "newman run postman/ModoFriki-API.postman_collection.json -e postman/local.postman_environment.json --reporters cli,json --reporter-json-export postman/reports/last-run.json",
+    "media:cleanup": "tsx src/scripts/media-cleanup.ts",
+    "media:thumbnails": "tsx src/scripts/media-thumbnails.ts"
   },
   "repository": {
     "type": "git",
@@ -38,12 +41,15 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.8",
     "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
     "joi": "^18.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.2",
     "multer": "^2.4.0",
     "pg": "^8.23.1",
     "safe-stable-stringify": "^3.0.0",
+    "sharp": "^0.35.5",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.19.0",
     "yaml": "^2.9.1"

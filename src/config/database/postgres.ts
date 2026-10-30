@@ -30,4 +30,15 @@ export async function connectDatabase() {
 	}
 }
 
+// Health check: real round trip, bounded so a hung connection cannot hang /health.
+export async function isPostgresUp(timeoutMs = 3000): Promise<boolean> {
+	let timer: NodeJS.Timeout | undefined;
+	const timeout = new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); });
+	try {
+		return await Promise.race([prisma.$queryRaw`SELECT 1`.then(() => true, () => false), timeout]);
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
 export default prisma;

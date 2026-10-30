@@ -1,7 +1,7 @@
 import type { ChapterKind } from "../generated/prisma/enums";
 
 export interface Paginated<T> { items: T[]; total: number; page: number; limit: number }
-export interface WorkRef { id: string; slug: string; title: string; coverUrl: string | null }
+export interface WorkRef { id: string; slug: string; title: string; coverUrl: string | null; thumbUrl: string | null }
 export interface LatestChapter {
 	id: string; workId: string; number: string; title: string | null;
 	kind: ChapterKind; publishedAt: Date; work: WorkRef;

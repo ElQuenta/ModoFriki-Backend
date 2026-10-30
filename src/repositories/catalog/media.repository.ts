@@ -72,7 +72,7 @@ export class MediaRepository implements MediaRepositoryContract {
     const where = {
      id: { in: [...new Set(assetIds)] },
      uploadObjects: { some: { batch: { chapterId, status: "COMMITTED" as const } } },
-     pages: { none: {} }, workCovers: { none: {} }, incapBanners: { none: {} }, siteSettings: { none: {} }
+     pages: { none: {} }, workCovers: { none: {} }, coverThumbs: { none: {} }, incapBanners: { none: {} }, siteSettings: { none: {} }
     };
     const assets = await tx.mediaAsset.findMany({ where, select: { id: true, pathname: true } });
     if (assets.length) await tx.mediaAsset.updateMany({ where: { ...where, id: { in: assets.map(asset => asset.id) } }, data: { status: "DELETING" } });

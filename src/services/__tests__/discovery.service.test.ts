@@ -110,3 +110,46 @@ describe("DiscoveryService.listRecommendedWorks", () => {
 		expect(repo.listRecommendedWorks).not.toHaveBeenCalled();
 	});
 });
+
+describe("DiscoveryService cache", () => {
+	let clock = 0;
+	let cached: DiscoveryService;
+	beforeEach(() => { clock = 0; cached = new DiscoveryService(repo, { ttlMs: 60_000, now: () => clock }); });
+
+	it("reutiliza la respuesta dentro del TTL y la renueva al vencer", async () => {
+		await cached.listPopularWorks({});
+		await cached.listPopularWorks({ period: "all", page: "1" });
+		expect(repo.listPopularWorks).toHaveBeenCalledTimes(1);
+		clock = 60_001;
+		await cached.listPopularWorks({});
+		expect(repo.listPopularWorks).toHaveBeenCalledTimes(2);
+	});
+
+	it("separa claves por query y por endpoint", async () => {
+		await cached.listLatestChapters({ limit: 5 });
+		await cached.listLatestChapters({ limit: 6 });
+		await cached.listPopularWorks({ limit: 5 });
+		expect(repo.listLatestChapters).toHaveBeenCalledTimes(2);
+		expect(repo.listPopularWorks).toHaveBeenCalledTimes(1);
+	});
+
+	it("no cachea errores ni consultas inválidas", async () => {
+		repo.listLatestChapters.mockRejectedValueOnce(new AppError("boom", 500));
+		await expectStatus(cached.listLatestChapters({}), 500);
+		await cached.listLatestChapters({});
+		expect(repo.listLatestChapters).toHaveBeenCalledTimes(2);
+		await expectStatus(cached.listLatestChapters({ limit: 0 }), 400);
+	});
+
+	it("recomendadas nunca se cachean (son por usuario)", async () => {
+		await cached.listRecommendedWorks({}, userId);
+		await cached.listRecommendedWorks({}, userId);
+		expect(repo.listRecommendedWorks).toHaveBeenCalledTimes(2);
+	});
+
+	it("sin ttl (por defecto) no cachea", async () => {
+		await service.listPopularWorks({});
+		await service.listPopularWorks({});
+		expect(repo.listPopularWorks).toHaveBeenCalledTimes(2);
+	});
+});

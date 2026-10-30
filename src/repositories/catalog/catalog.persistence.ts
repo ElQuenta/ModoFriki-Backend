@@ -3,7 +3,7 @@ import type { AssetInput, CatalogActor } from "../../types/catalog.types";
 import AppError from "../../utils/AppError";
 import { readSqlTime } from "../user-locks";
 
-export const workInclude = { type: true, coverAsset: true, incapBannerAsset: true, alternativeTitles: true, genres: { include: { genre: true } } } as const;
+export const workInclude = { type: true, coverAsset: true, coverThumbAsset: true, incapBannerAsset: true, alternativeTitles: true, genres: { include: { genre: true } } } as const;
 export const chapterInclude = { pages: { include: { asset: true }, orderBy: { position: "asc" as const } } } as const;
 export type Transaction = Prisma.TransactionClient;
 export async function lockWork(tx: Transaction, workId: string) {
