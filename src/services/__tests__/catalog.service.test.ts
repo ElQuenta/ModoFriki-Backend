@@ -251,6 +251,11 @@ describe("validación de entrada e imágenes", () => {
 		expect(prepared.pagesRequired).toBe(true);
 		expect(plan.context.replacedPageAssetIds).toEqual(["asset-1", "asset-2"]);
 	});
+	it("una página final ordinaria cuenta para el límite de 1000", async () => {
+		const pages = Array.from({ length: 1000 }, (_, index) => makePage(`00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, index + 1));
+		repos.chapters.findForEdit.mockResolvedValue(makeChapter({ pages }));
+		await expectStatus(service.prepare("insert", { expectedVersion: 3, position: 1001 }, [pageImg], admin, workId, chapterId), 400, "Chapter exceeds 1000 pages");
+	});
 	it("reorder que no es permutación exacta → 400; permutación válida invierte el orden", async () => {
 		repos.chapters.findForEdit.mockResolvedValue(makeChapter({ pages: [makePage(pageA, 1), makePage(pageB, 2)] }));
 		await expectStatus(service.prepare("reorder", { expectedVersion: 3, pageIds: [pageA] }, [], admin, workId, chapterId), 400);

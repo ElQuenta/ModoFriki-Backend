@@ -2284,6 +2284,7 @@ components:
               genre: { $ref: "#/components/schemas/Taxonomy" }
     CatalogPage:
       type: object
+      description: "Página editorial ordinaria. Un mensaje final, si existe, es simplemente la última página de esta colección."
       required: [id, chapterId, position, asset]
       properties:
         id: { type: string, format: uuid }
