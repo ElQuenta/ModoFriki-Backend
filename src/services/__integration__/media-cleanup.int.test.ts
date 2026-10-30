@@ -34,11 +34,13 @@ describe("limpieza de imágenes huérfanas", () => {
 	it("borra assets sin referencias y deja intactos los referenciados y los recientes", async () => {
 		const orphan = await asset();
 		const cover = await asset();
-		await prisma.work.update({ where: { id: data.work.id }, data: { coverAssetId: cover.id } });
+		const banner = await asset();
+		await prisma.work.update({ where: { id: data.work.id }, data: { coverAssetId: cover.id, bannerAssetId: banner.id } });
 		const recent = await asset(new Date());
 		const { removed } = await run(true);
 		expect(removed).toContain(orphan.pathname);
 		expect(removed).not.toContain(cover.pathname);
+		expect(removed).not.toContain(banner.pathname);
 		expect(removed).not.toContain(recent.pathname);
 		expect(await prisma.mediaCleanupJob.findFirstOrThrow({ where: { pathname: orphan.pathname } })).toMatchObject({ status: "COMPLETED", attempts: 1 });
 		expect((await prisma.mediaAsset.findUniqueOrThrow({ where: { id: orphan.id } })).status).toBe("DELETING");

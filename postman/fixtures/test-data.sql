@@ -19,14 +19,16 @@ ON CONFLICT DO NOTHING;
 INSERT INTO "MediaAsset" ("id", "pathname", "url", "contentType", "sizeBytes", "width", "height", "createdById") VALUES
 	('55555555-5555-4555-8555-555555555551', 'obra-de-prueba/Covers/c0de.png', 'https://placehold.co/600x900.png?text=Portada', 'image/png', 1000, 600, 900, '11111111-1111-4111-8111-111111111111'),
 	('55555555-5555-4555-8555-555555555552', 'obra-de-prueba/Chapter-7777/aaaa-1.png', 'https://placehold.co/800x1200.png?text=Pagina+1', 'image/png', 1000, 800, 1200, '11111111-1111-4111-8111-111111111111'),
-	('55555555-5555-4555-8555-555555555553', 'obra-de-prueba/Chapter-7777/bbbb-2.png', 'https://placehold.co/800x1200.png?text=Pagina+2', 'image/png', 1000, 800, 1200, '11111111-1111-4111-8111-111111111111')
+	('55555555-5555-4555-8555-555555555553', 'obra-de-prueba/Chapter-7777/bbbb-2.png', 'https://placehold.co/800x1200.png?text=Pagina+2', 'image/png', 1000, 800, 1200, '11111111-1111-4111-8111-111111111111'),
+	('55555555-5555-4555-8555-555555555554', 'obra-de-prueba/Banners/ba01.png', 'https://placehold.co/1600x500.png?text=Banner', 'image/png', 1000, 1600, 500, '11111111-1111-4111-8111-111111111111'),
+	('55555555-5555-4555-8555-555555555555', 'obra-de-prueba/CoverPage/cb01.png', 'https://placehold.co/1600x500.png?text=Portadilla', 'image/png', 1000, 1600, 500, '11111111-1111-4111-8111-111111111111')
 -- Rutas con el formato real del pipeline (assertMediaPath), para miniaturas y limpieza.
 ON CONFLICT ("id") DO UPDATE SET "pathname" = EXCLUDED."pathname";
 
 -- Una obra publicada (visible) y una en borrador (debe dar 404 al público).
-INSERT INTO "Work" ("id", "title", "slug", "synopsis", "typeId", "publicationStatus", "releaseStatus", "coverAssetId", "createdById", "updatedById", "updatedAt", "publishedAt") VALUES
-	('66666666-6666-4666-8666-666666666666', 'Obra de Prueba', 'obra-de-prueba', 'Sinopsis de la obra usada por las pruebas automáticas.', '33333333-3333-4333-8333-333333333333', 'PUBLISHED', 'ONGOING', '55555555-5555-4555-8555-555555555551', '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111', now(), now()),
-	('66666666-6666-4666-8666-666666666667', 'Obra Borrador', 'obra-borrador', 'No debe verse en el catálogo público.', '33333333-3333-4333-8333-333333333333', 'DRAFT', 'ONGOING', NULL, '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111', now(), NULL)
+INSERT INTO "Work" ("id", "title", "slug", "synopsis", "typeId", "publicationStatus", "releaseStatus", "coverAssetId", "bannerAssetId", "incapBannerAssetId", "createdById", "updatedById", "updatedAt", "publishedAt") VALUES
+	('66666666-6666-4666-8666-666666666666', 'Obra de Prueba', 'obra-de-prueba', 'Sinopsis de la obra usada por las pruebas automáticas.', '33333333-3333-4333-8333-333333333333', 'PUBLISHED', 'ONGOING', '55555555-5555-4555-8555-555555555551', '55555555-5555-4555-8555-555555555554', '55555555-5555-4555-8555-555555555555', '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111', now(), now()),
+	('66666666-6666-4666-8666-666666666667', 'Obra Borrador', 'obra-borrador', 'No debe verse en el catálogo público.', '33333333-3333-4333-8333-333333333333', 'DRAFT', 'ONGOING', NULL, NULL, NULL, '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111', now(), NULL)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "WorkGenre" ("id", "workId", "genreId") VALUES

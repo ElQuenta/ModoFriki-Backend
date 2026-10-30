@@ -1857,7 +1857,7 @@
 								"type": "text/javascript",
 								"exec": [
 									"// La revisión sube también con respuestas y votos: se lee la actual antes de editar.",
-									"pm.sendRequest({ url: `${pm.collectionVariables.get(\"baseUrl\")}/comments?rootCommentId=${pm.collectionVariables.get(\"commentId\")}`, method: \"GET\" }, (e, r) => {",
+									"pm.sendRequest({ url: `${pm.variables.get(\"baseUrl\")}/comments?rootCommentId=${pm.collectionVariables.get(\"commentId\")}`, method: \"GET\" }, (e, r) => {",
 									"\tconst c = r.json().data.items.find(i => i.id === pm.collectionVariables.get(\"commentId\"));",
 									"\tpm.collectionVariables.set(\"commentRevision\", c.revision);",
 									"});"
