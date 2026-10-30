@@ -20,4 +20,8 @@ describe("catalogDto", () => {
 	it("serializa BigInt como string", () => {
 		expect(catalogDto({ visits: 5n })).toEqual({ visits: "5" });
 	});
+
+	it("no expone la exención histórica interna", () => {
+		expect(catalogDto({ legacyPublicationImagesExempt: true, bannerAssetId: "internal", bannerAsset: { id: "asset", url: "https://blob/banner.png" } })).toEqual({ bannerAsset: { id: "asset", url: "https://blob/banner.png" } });
+	});
 });

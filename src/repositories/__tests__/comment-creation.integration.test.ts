@@ -6,7 +6,7 @@ import { createBarrier, openIntegrationClients } from "../../__tests__/helpers/i
 describe("durable comment creation protocol", () => {
 	let prisma: any, mongoose: any, close: () => Promise<void>;
 	let decisions: any, comments: any;
-	let userId: string, adminId: string, typeId: string, workId: string, chapterId: string;
+	let userId: string, adminId: string, typeId: string, workId: string, chapterId: string, coverId: string, bannerId: string, openingId: string;
 	const mongoIds = new Set<string>();
 	const sqlIds = new Set<string>();
 	const fingerprint = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -20,14 +20,15 @@ describe("durable comment creation protocol", () => {
 	});
 	afterAll(async () => close?.());
 	beforeEach(async () => {
-		[userId, adminId, typeId, workId, chapterId] = Array.from({ length: 5 }, () => randomUUID());
-		for (const id of [userId, adminId, typeId, workId, chapterId]) sqlIds.add(id);
+		[userId, adminId, typeId, workId, chapterId, coverId, bannerId, openingId] = Array.from({ length: 8 }, () => randomUUID());
+		for (const id of [userId, adminId, typeId, workId, chapterId, coverId, bannerId, openingId]) sqlIds.add(id);
 		await prisma.user.createMany({ data: [
 			{ id: userId, email: `${userId}@example.test`, emailNormalized: `${userId}@example.test`, username: userId, usernameNormalized: userId, passwordHash: "test-only", role: "BASIC", status: "ACTIVE" },
 			{ id: adminId, email: `${adminId}@example.test`, emailNormalized: `${adminId}@example.test`, username: adminId, usernameNormalized: adminId, passwordHash: "test-only", role: "ADMIN", status: "ACTIVE" }
 		] });
 		await prisma.workType.create({ data: { id: typeId, name: typeId, slug: typeId } });
-		await prisma.work.create({ data: { id: workId, title: workId, slug: workId, synopsis: "fixture", typeId, publicationStatus: "PUBLISHED", publishedAt: new Date(), createdById: adminId, updatedById: adminId } });
+		await prisma.mediaAsset.createMany({ data: [coverId, bannerId, openingId].map((id, index) => ({ id, pathname: `comment-fixture/${id}.png`, url: `https://fixtures.invalid/${id}.png`, contentType: "image/png", sizeBytes: 1, createdById: adminId })) });
+		await prisma.work.create({ data: { id: workId, title: workId, slug: workId, synopsis: "fixture", typeId, publicationStatus: "PUBLISHED", publishedAt: new Date(), coverAssetId: coverId, bannerAssetId: bannerId, incapBannerAssetId: openingId, createdById: adminId, updatedById: adminId } });
 		await prisma.chapter.create({ data: { id: chapterId, workId, number: "1", status: "PUBLISHED", publishedAt: new Date(), createdById: adminId, updatedById: adminId } });
 	});
 	afterEach(async () => {
@@ -39,7 +40,7 @@ describe("durable comment creation protocol", () => {
 		await prisma.$executeRawUnsafe('DELETE FROM "CommentSanction" WHERE "userId" = $1 OR "imposedById" = $1 OR "revokedById" = $1', userId);
 		await prisma.$executeRawUnsafe('DELETE FROM "CommentSanction" WHERE "userId" = $1 OR "imposedById" = $1 OR "revokedById" = $1', adminId);
 		for (const id of sqlIds) await prisma.$executeRawUnsafe('DELETE FROM "CommentCreationDecision" WHERE "id" = $1 OR "authorId" = $1', id);
-		await prisma.chapter.deleteMany({ where: { id: chapterId } }); await prisma.work.deleteMany({ where: { id: workId } }); await prisma.workType.deleteMany({ where: { id: typeId } });
+		await prisma.chapter.deleteMany({ where: { id: chapterId } }); await prisma.work.deleteMany({ where: { id: workId } }); await prisma.mediaAsset.deleteMany({ where: { id: { in: [coverId, bannerId, openingId] } } }); await prisma.workType.deleteMany({ where: { id: typeId } });
 		await prisma.user.deleteMany({ where: { id: { in: [userId, adminId] } } }); sqlIds.clear();
 	});
 

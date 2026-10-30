@@ -129,6 +129,13 @@
 
 **Checkpoint**: US3 aporta imágenes y lectura sin necesitar sanciones activas. La edición compartida de schema se serializa por DB; la aceptación de la historia no sustituye el ensayo de corte completo.
 
+### Registro de ejecución US3
+
+- [X] T043–T045 — Contratos de catálogo, DTO y fixtures de integración ampliados para tres activos, publicación histórica y nuevas restricciones SQL.
+- [X] T046–T052 — Migración aditiva, persistencia, pipeline multipart, rutas Blob, composición `readingImages` y protección de referencias a banners.
+- [X] T053 — API/OpenAPI y contrato de consumidor actualizados; la aceptación externa permanece explícitamente PENDIENTE en `validation/frontend-contract.md`.
+- [X] T054–T055 — Prisma, build, unitarias e integración sobre PostgreSQL/MongoDB desechables ejecutados y requisitos US3 revisados en `validation/us3.md`.
+
 ## Phase 6: US4 — Mensaje final como página ordinaria (Priority: P2)
 
 **Goal**: EDITOR asignado o ADMIN puede añadir su mensaje como última página, sin recursos ni inserciones automáticas de cierre.

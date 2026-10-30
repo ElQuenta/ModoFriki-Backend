@@ -10,8 +10,10 @@ export type WorkPatch = Partial<WorkInput>;
 export interface ChapterInput { number: string | number; title?: string | null; kind?: ChapterKind; status?: PublicationStatus }
 export type ChapterPatch = Partial<ChapterInput>;
 export interface CatalogListInput { skip?: number; take?: number; search?: string; typeId?: string; genreId?: string; includeDrafts?: boolean }
-export type WorkRecord = Prisma.WorkGetPayload<{ include: { type: true; coverAsset: true; incapBannerAsset: true; alternativeTitles: true; genres: { include: { genre: true } } } }>;
+export type WorkRecord = Prisma.WorkGetPayload<{ include: { type: true; coverAsset: true; bannerAsset: true; incapBannerAsset: true; alternativeTitles: true; genres: { include: { genre: true } } } }>;
 export type ChapterRecord = Prisma.ChapterGetPayload<{ include: { pages: { include: { asset: true } } } }>;
+export interface ReadingImage { kind: "WORK_OPENING" | "PAGE"; asset: { id: string; url: string; contentType: string }; pageId: string | null; position: number | null }
+export type ChapterDetailRecord = ChapterRecord & { readingImages: ReadingImage[] };
 export interface WorkSaveInput { actor: CatalogActor; workId: string; data: WorkPatch; expectedUpdatedAt: Date; assets?: AssetInput[]; batchId?: string; creating?: boolean }
 export interface ChapterSaveInput { actor: CatalogActor; workId: string; chapterId: string; data: ChapterPatch; expectedVersion: number; pages?: AssetInput[]; batchId?: string; creating?: boolean }
 export interface WorkRepositoryContract {

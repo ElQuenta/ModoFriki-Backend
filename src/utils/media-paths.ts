@@ -24,8 +24,9 @@ function extension(value: string): string {
 	return value;
 }
 
-export function workMediaPath(slug: string, field: "cover" | "inpagecover", id: string, ext: string): string {
-	return `${segment(slug)}/${field === "cover" ? "Covers" : "CoverPage"}/${identifier(id)}.${extension(ext)}`;
+export function workMediaPath(slug: string, field: "cover" | "banner" | "inpagecover", id: string, ext: string): string {
+	const namespace = field === "cover" ? "Covers" : field === "banner" ? "Banners" : "CoverPage";
+	return `${segment(slug)}/${namespace}/${identifier(id)}.${extension(ext)}`;
 }
 
 export function chapterMediaPath(slug: string, chapterId: string, generation: string, position: number, ext: string): string {
@@ -35,7 +36,7 @@ export function chapterMediaPath(slug: string, chapterId: string, generation: st
 
 /** Restricts remote destinations to the server generated namespace, never client filenames. */
 export function assertMediaPath(pathname: string): void {
-	if (!/^[a-z0-9]+(?:-[a-z0-9]+)*\/(?:Covers|CoverPage)\/[a-f0-9]{4}\.(?:jpg|png|webp)$/.test(pathname)
+	if (!/^[a-z0-9]+(?:-[a-z0-9]+)*\/(?:Covers|Banners|CoverPage)\/[a-f0-9]{4}\.(?:jpg|png|webp)$/.test(pathname)
 		&& !/^[a-z0-9]+(?:-[a-z0-9]+)*\/Chapter-[a-f0-9]{4}\/[a-f0-9]{4}-[1-9][0-9]{0,3}\.(?:jpg|png|webp)$/.test(pathname)) {
 		throw new AppError("Invalid media destination", 400);
 	}

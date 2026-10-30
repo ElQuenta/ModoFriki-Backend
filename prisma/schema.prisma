@@ -213,8 +213,10 @@ model Work {
   publicationStatus  PublicationStatus      @default(DRAFT)
   releaseStatus      WorkReleaseStatus      @default(ONGOING)
   coverAssetId       String?                @db.Uuid
+  bannerAssetId      String?                @db.Uuid
   incapBannerAssetId String?                @db.Uuid
   coverThumbAssetId  String?                @db.Uuid
+  legacyPublicationImagesExempt Boolean     @default(false)
   createdById        String                 @db.Uuid
   updatedById        String                 @db.Uuid
   createdAt          DateTime               @default(now()) @db.Timestamptz(3)
@@ -224,6 +226,7 @@ model Work {
   visitsCount        Int                    @default(0)
   type               WorkType               @relation(fields: [typeId], references: [id], onDelete: Restrict)
   coverAsset         MediaAsset?            @relation("WorkCover", fields: [coverAssetId], references: [id], onDelete: Restrict)
+  bannerAsset        MediaAsset?            @relation("WorkBanner", fields: [bannerAssetId], references: [id], onDelete: Restrict)
   incapBannerAsset   MediaAsset?            @relation("WorkIncapBanner", fields: [incapBannerAssetId], references: [id], onDelete: Restrict)
   coverThumbAsset    MediaAsset?            @relation("WorkCoverThumb", fields: [coverThumbAssetId], references: [id], onDelete: Restrict)
   createdBy          User                   @relation("WorkCreator", fields: [createdById], references: [id], onDelete: Restrict)
@@ -241,6 +244,7 @@ model Work {
   @@index([typeId, publicationStatus, publishedAt, id])
   @@index([publicationStatus, deletedAt, visitsCount])
   @@index([coverThumbAssetId])
+  @@index([bannerAssetId])
 }
 
 model WorkAlternativeTitle {
@@ -322,6 +326,7 @@ model MediaAsset {
   createdAt     DateTime          @default(now()) @db.Timestamptz(3)
   createdBy     User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
   workCovers    Work[]            @relation("WorkCover")
+  workBanners   Work[]            @relation("WorkBanner")
   incapBanners  Work[]            @relation("WorkIncapBanner")
   coverThumbs   Work[]            @relation("WorkCoverThumb")
   pages         ChapterPage[]

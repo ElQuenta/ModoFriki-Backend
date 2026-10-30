@@ -3,7 +3,7 @@ import { workRepository } from "../../repositories/catalog/work.repository";
 import { chapterRepository } from "../../repositories/catalog/chapter.repository";
 import { taxonomyRepository } from "../../repositories/catalog/taxonomy.repository";
 import { mediaRepository } from "../../repositories/catalog/media.repository";
-import type { AssetInput, CatalogActor, ChapterInput, ChapterPatch, ChapterRecord, UploadContext, WorkInput, WorkPatch, WorkRecord, WorkRepositoryContract, ChapterRepositoryContract, TaxonomyRepositoryContract, MediaRepositoryContract } from "../../types/catalog.types";
+import type { AssetInput, CatalogActor, ChapterInput, ChapterPatch, ChapterRecord, ChapterDetailRecord, UploadContext, WorkInput, WorkPatch, WorkRecord, WorkRepositoryContract, ChapterRepositoryContract, TaxonomyRepositoryContract, MediaRepositoryContract } from "../../types/catalog.types";
 import * as schemas from "../../middlewares/schemas/catalog.schema";
 import { chapterMediaPath, createWorkSlug, shortId, workMediaPath } from "../../utils/media-paths";
 import AppError from "../../utils/AppError";
@@ -39,7 +39,17 @@ export class CatalogService {
 	}
 	getWork(id: string, actor?: CatalogActor) { return this.run(async () => { const record = await this.works.findById(id, actor); if (!record) throw new AppError("Work not found", 404); return record; }); }
 	listChapters(workId: string, input: unknown, actor?: CatalogActor) { return this.run(async () => { await this.getWork(workId, actor); return this.chapters.list(workId, this.listInput(input, actor), actor); }); }
-	getChapter(workId: string, id: string, actor?: CatalogActor) { return this.run(async () => { const record = await this.chapters.findById(workId, id, actor); if (!record) throw new AppError("Chapter not found", 404); return record; }); }
+	getChapter(workId: string, id: string, actor?: CatalogActor) { return this.run(async (): Promise<ChapterDetailRecord> => {
+		const record = await this.chapters.findById(workId, id, actor);
+		if (!record) throw new AppError("Chapter not found", 404);
+		const detail = record as ChapterRecord & { work?: { incapBannerAsset: { id: string; url: string; contentType: string } | null } };
+		const opening = detail.work?.incapBannerAsset;
+		const readingImages = [
+			...(opening ? [{ kind: "WORK_OPENING" as const, asset: opening, pageId: null, position: null }] : []),
+			...record.pages.map(page => ({ kind: "PAGE" as const, asset: { id: page.asset.id, url: page.asset.url, contentType: page.asset.contentType }, pageId: page.id, position: page.position }))
+		];
+		return { ...record, readingImages };
+	}); }
 	preflight(workId: string | undefined, chapterId: string | undefined, actor: CatalogActor, creatingWork = false) {
 		return this.run(async () => {
 			this.staff(actor); if (creatingWork) { this.admin(actor); return; }
@@ -55,9 +65,9 @@ export class CatalogService {
 		return this.run(async () => {
 			await this.preflight(workId, chapterId, actor, mode === "createWork");
 			const workMode = mode === "createWork" || mode === "editWork";
-			if (images.length > (workMode ? 2 : 100) || images.some(image => !Number.isSafeInteger(image.size) || image.size < 1 || image.size > 10 * 1024 * 1024
+			if (images.length > (workMode ? 3 : 100) || images.some(image => !Number.isSafeInteger(image.size) || image.size < 1 || image.size > 10 * 1024 * 1024
 				|| !["image/jpeg", "image/png", "image/webp"].includes(image.contentType) || !["jpg", "png", "webp"].includes(image.extension)
-				|| !(workMode ? ["cover", "inpagecover"] : ["pages"]).includes(image.fieldName))) throw new AppError("Invalid image metadata", 400);
+				|| !(workMode ? ["cover", "banner", "inpagecover"] : ["pages"]).includes(image.fieldName))) throw new AppError("Invalid image metadata", 400);
 			if (workMode && new Set(images.map(image => image.fieldName)).size !== images.length) throw new AppError("Only one image per work media field is allowed", 400);
 			if (mode === "reorder" && images.length) throw new AppError("Reordering accepts JSON pageIds only", 400);
 			const schema = mode === "createWork" ? schemas.createWorkSchema : mode === "editWork" ? schemas.editWorkSchema : mode === "createChapter" ? schemas.createChapterSchema : mode === "insert" ? schemas.insertPagesSchema : mode === "reorder" ? schemas.reorderPagesSchema : mode === "replace" ? schemas.deleteChapterSchema : schemas.editChapterSchema;
@@ -69,15 +79,16 @@ export class CatalogService {
 				await this.references(data);
 				let work: WorkRecord;
 				if (mode === "createWork") {
-					if (data.publicationStatus === "PUBLISHED" && !images.some(i => i.fieldName === "cover")) throw new AppError("Published work requires a cover", 400);
+					if (data.publicationStatus === "PUBLISHED" && !["cover", "banner", "inpagecover"].every(field => images.some(i => i.fieldName === field))) throw new AppError("Published work requires cover, banner and in-page cover", 400);
 					const id = randomUUID(); work = await this.works.reserve(id, createWorkSlug(data.title!, id), data as WorkInput, actor);
 				} else {
 					work = await this.works.findForEdit(workId!, actor);
 					if (work.updatedAt.getTime() !== expectedUpdatedAt.getTime()) throw new AppError("Work changed; reload before editing", 409);
-					if ((data.publicationStatus ?? work.publicationStatus) === "PUBLISHED" && !work.coverAssetId && !images.some(i => i.fieldName === "cover")) throw new AppError("Published work requires a cover", 400);
+					const effective = (field: "cover" | "banner" | "inpagecover") => field === "cover" ? work.coverAssetId || images.some(i => i.fieldName === field) : field === "banner" ? work.bannerAssetId || images.some(i => i.fieldName === field) : work.incapBannerAssetId || images.some(i => i.fieldName === field);
+					if ((data.publicationStatus ?? work.publicationStatus) === "PUBLISHED" && (!effective("cover") || (!work.legacyPublicationImagesExempt && (!effective("banner") || !effective("inpagecover"))))) throw new AppError("Published work requires cover, banner and in-page cover", 400);
 				}
 				context = { workId: work.id, workSlug: work.slug, actorId: actor.id, expectedUpdatedAt: work.updatedAt, creating: mode === "createWork" };
-				images.forEach((file, fileIndex) => objects.push({ pathname: workMediaPath(work.slug, file.fieldName as "cover" | "inpagecover", shortId(), file.extension), contentType: file.contentType, size: file.size, fieldName: file.fieldName, fileIndex }));
+				images.forEach((file, fileIndex) => objects.push({ pathname: workMediaPath(work.slug, file.fieldName as "cover" | "banner" | "inpagecover", shortId(), file.extension), contentType: file.contentType, size: file.size, fieldName: file.fieldName, fileIndex }));
 			} else {
 				const work = await this.works.findForEdit(workId!, actor);
 				let chapter: ChapterRecord;
